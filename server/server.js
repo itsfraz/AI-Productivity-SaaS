@@ -1,0 +1,61 @@
+import express from 'express';
+import dotenv from 'dotenv';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
+import { connectDB } from './config/db.js';
+import { errorHandler, notFound } from './middleware/errorMiddleware.js';
+
+dotenv.config();
+
+// Connect to MongoDB
+connectDB();
+
+const app = express();
+
+// Security & Logging Middleware
+app.use(helmet());
+app.use(cors({ origin: true, credentials: true }));
+app.use(morgan('dev'));
+
+// Body parsing Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+
+import authRoutes from './routes/authRoutes.js';
+import taskRoutes from './routes/taskRoutes.js';
+import habitRoutes from './routes/habitRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import focusRoutes from './routes/focusRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+import userRoutes from './routes/userRoutes.js';
+import { startCronJobs } from './jobs/cronJobs.js';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/habits', habitRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/focus', focusRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Start background jobs
+startCronJobs();
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'success', message: 'API is running...' });
+});
+
+// Setup Error Handling Middleware
+app.use(notFound);
+app.use(errorHandler);
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+});

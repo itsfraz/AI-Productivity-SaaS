@@ -1,0 +1,99 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  
+  --color-primary-50: #eef2ff;
+  --color-primary-100: #e0e7ff;
+  --color-primary-200: #c7d2fe;
+  --color-primary-300: #a5b4fc;
+  --color-primary-400: #818cf8;
+  --color-primary-500: #6366f1;
+  --color-primary-600: #4f46e5;
+  --color-primary-700: #4338ca;
+  --color-primary-800: #3730a3;
+  --color-primary-900: #312e81;
+  --color-primary-950: #1e1b4b;
+
+  --color-dark-bg: #000000;
+  --color-dark-card: #09090b;
+  --color-dark-border: #27272a;
+  --color-dark-text: #fafafa;
+  --color-dark-muted: #a1a1aa;
+
+  --shadow-glass: 0 4px 30px rgba(0, 0, 0, 0.1);
+  --shadow-glass-dark: 0 4px 30px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.5);
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-50 text-zinc-900 font-sans antialiased selection:bg-primary-500/30 selection:text-primary-900 dark:bg-dark-bg dark:text-dark-text dark:selection:text-white;
+  }
+  
+  /* Custom sleek scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-300 rounded-full dark:bg-zinc-800;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-400 dark:bg-zinc-700;
+  }
+}
+
+@layer components {
+  /* Premium SaaS UI components */
+  .glass-card {
+    @apply bg-white/70 backdrop-blur-xl border border-zinc-200/50 shadow-sm rounded-2xl transition-all duration-300 dark:bg-dark-card/50 dark:border-dark-border dark:shadow-[0_8px_30px_rgb(0,0,0,0.12)];
+  }
+  
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-2xl border border-zinc-200/80 shadow-glass rounded-2xl dark:bg-zinc-900/80 dark:border-dark-border dark:shadow-glass-dark;
+  }
+
+  .btn-primary {
+    @apply relative px-5 py-2.5 bg-primary-600 hover:bg-primary-500 text-white font-medium rounded-xl transition-all duration-200 shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_25px_rgba(99,102,241,0.5)] active:scale-[0.98] flex items-center justify-center gap-2 overflow-hidden;
+  }
+  
+  .btn-secondary {
+    @apply px-5 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-900 dark:text-zinc-100 font-medium rounded-xl transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2 border border-zinc-200 dark:border-zinc-700;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 bg-zinc-50 border border-zinc-200 rounded-xl focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 outline-none transition-all duration-200 text-sm shadow-sm text-zinc-900 dark:bg-zinc-900/50 dark:border-dark-border dark:text-white dark:placeholder-dark-muted dark:shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)];
+  }
+
+  .nav-item {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-medium text-sm;
+  }
+  
+  .badge {
+    @apply px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+}
+
+/* Animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0px); }
+}
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
