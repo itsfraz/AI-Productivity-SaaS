@@ -8,35 +8,69 @@ export const getAnalytics = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
-    // 1. Fetch data
-    const tasks = await Task.find({ user: userId });
-    const habits = await Habit.find({ user: userId });
+    // Use aggregation pipeline instead of fetching all docs into memory
+    const [taskStats, habitData] = await Promise.all([
+      Task.aggregate([
+        { $match: { user: userId } },
+        {
+          $facet: {
+            totals: [
+              {
+                $group: {
+                  _id: null,
+                  totalTasks: { $sum: 1 },
+                  completedTasks: {
+                    $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+                  },
+                  overdueTasks: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $ne: ['$status', 'completed'] },
+                            { $ne: ['$deadline', null] },
+                            { $lt: ['$deadline', new Date()] }
+                          ]
+                        },
+                        1,
+                        0
+                      ]
+                    }
+                  },
+                  activeTasks: {
+                    $sum: { $cond: [{ $ne: ['$status', 'completed'] }, 1, 0] }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]),
+      Habit.aggregate([
+        { $match: { user: userId } },
+        {
+          $group: {
+            _id: null,
+            totalHabits: { $sum: 1 },
+            totalStreaks: { $sum: '$streak' }
+          }
+        }
+      ])
+    ]);
+
+    // Extract results
+    const stats = taskStats[0]?.totals[0] || { totalTasks: 0, completedTasks: 0, overdueTasks: 0, activeTasks: 0 };
+    const habits = habitData[0] || { totalHabits: 0, totalStreaks: 0 };
+
+    const { totalTasks, completedTasks, overdueTasks, activeTasks: activeTasksCount } = stats;
+    const { totalHabits, totalStreaks } = habits;
 
     // 2. Calculate Productivity Score (0-100)
-    // Formula: (Completed Tasks / Total Tasks) * 60 + (Active Habits Streak / Total Habits * Expected Streak) * 40
-    // Simplify for MVP: based on task completion ratio + habit consistency
-    const totalTasks = tasks.length;
-    const completedTasks = tasks.filter(t => t.status === 'completed').length;
     const taskCompletionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-
-    const totalHabits = habits.length;
-    const totalStreaks = habits.reduce((acc, curr) => acc + curr.streak, 0);
-    // Let's assume an average healthy streak is 7 days. Cap at 100%.
     const habitConsistency = totalHabits > 0 ? Math.min((totalStreaks / (totalHabits * 7)) * 100, 100) : 0;
-
-    // Weighting: 60% Tasks, 40% Habits
     const productivityScore = Math.round((taskCompletionRate * 0.6) + (habitConsistency * 0.4));
 
     // 3. Burnout Detection Logic
-    // High risk if: Overdue tasks > 3 OR (Total active tasks > 15 && completion rate < 20%)
-    const overdueTasks = tasks.filter(t => 
-      t.status !== 'completed' && 
-      t.deadline && 
-      new Date(t.deadline) < new Date()
-    ).length;
-    
-    const activeTasksCount = tasks.filter(t => t.status !== 'completed').length;
-    
     let burnoutRisk = 'Low';
     let burnoutMessage = 'You are maintaining a healthy pace.';
     
@@ -48,17 +82,10 @@ export const getAnalytics = async (req, res, next) => {
       burnoutMessage = 'You have a growing backlog. Try using Focus Mode to clear small tasks.';
     }
 
-    // 4. Weekly Trend Analysis (Mocked Data for Chart generation based on current stats)
+    // 4. Weekly Trend Analysis
     // In a production app, we would query the FocusSession collection for daily aggregates.
-    const weeklyFocusData = [
-      { day: 'Mon', focusHours: 4.2, tasksDone: 5 },
-      { day: 'Tue', focusHours: 5.1, tasksDone: 7 },
-      { day: 'Wed', focusHours: 3.8, tasksDone: 4 },
-      { day: 'Thu', focusHours: 6.0, tasksDone: 8 },
-      { day: 'Fri', focusHours: 4.5, tasksDone: 6 },
-      { day: 'Sat', focusHours: 1.2, tasksDone: 2 },
-      { day: 'Sun', focusHours: 2.0, tasksDone: 3 },
-    ];
+    // For now, we return empty so the UI shows 0s for new users.
+    const weeklyFocusData = [];
 
     res.status(200).json({
       productivityScore,

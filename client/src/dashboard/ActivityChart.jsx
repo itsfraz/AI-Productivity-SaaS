@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const data = [
-  { name: 'Mon', score: 65, tasks: 4 },
-  { name: 'Tue', score: 78, tasks: 6 },
-  { name: 'Wed', score: 85, tasks: 8 },
-  { name: 'Thu', score: 82, tasks: 7 },
-  { name: 'Fri', score: 95, tasks: 10 },
-  { name: 'Sat', score: 45, tasks: 2 },
-  { name: 'Sun', score: 90, tasks: 9 },
+const defaultData = [
+  { name: 'Mon', score: 0, tasks: 0 },
+  { name: 'Tue', score: 0, tasks: 0 },
+  { name: 'Wed', score: 0, tasks: 0 },
+  { name: 'Thu', score: 0, tasks: 0 },
+  { name: 'Fri', score: 0, tasks: 0 },
+  { name: 'Sat', score: 0, tasks: 0 },
+  { name: 'Sun', score: 0, tasks: 0 },
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
@@ -24,7 +24,13 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-const ActivityChart = () => {
+const ActivityChart = ({ data }) => {
+  // If the backend doesn't send trends, fallback to defaultData
+  // Since the backend returns 'focusHours' and 'tasksDone', we map it to match Recharts 'score' and 'tasks'
+  const chartData = data && data.length > 0 
+    ? data.map(item => ({ name: item.day, score: item.focusHours * 10 || 0, tasks: item.tasksDone || 0 })) 
+    : defaultData;
+
   return (
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
@@ -45,7 +51,7 @@ const ActivityChart = () => {
 
       <div className="h-[280px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+          <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
             <defs>
               <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>

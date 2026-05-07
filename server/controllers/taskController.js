@@ -13,8 +13,10 @@ export const getTasks = async (req, res, next) => {
     if (priority) query.priority = priority;
     if (category) query.category = category;
 
-    // Optimized query: sort by deadline and priority
-    const tasks = await Task.find(query).sort({ deadline: 1, createdAt: -1 });
+    // .lean() returns plain JS objects instead of Mongoose docs — much faster
+    const tasks = await Task.find(query)
+      .sort({ deadline: 1, createdAt: -1 })
+      .lean();
     
     res.status(200).json(tasks);
   } catch (error) {
@@ -50,24 +52,17 @@ export const createTask = async (req, res, next) => {
 // @access  Private
 export const updateTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
-
-    if (!task) {
-      res.status(404);
-      throw new Error('Task not found');
-    }
-
-    // Ensure the user owns the task
-    if (task.user.toString() !== req.user._id.toString()) {
-      res.status(401);
-      throw new Error('Not authorized to update this task');
-    }
-
-    const updatedTask = await Task.findByIdAndUpdate(
-      req.params.id,
+    // Single query: find by id + user ownership, and update atomically
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: req.params.id, user: req.user._id },
       req.body,
       { new: true, runValidators: true }
     );
+
+    if (!updatedTask) {
+      res.status(404);
+      throw new Error('Task not found or not authorized');
+    }
 
     res.status(200).json(updatedTask);
   } catch (error) {
@@ -80,19 +75,17 @@ export const updateTask = async (req, res, next) => {
 // @access  Private
 export const deleteTask = async (req, res, next) => {
   try {
-    const task = await Task.findById(req.params.id);
+    // Single query: find + delete atomically with ownership check
+    const task = await Task.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user._id
+    });
 
     if (!task) {
       res.status(404);
-      throw new Error('Task not found');
+      throw new Error('Task not found or not authorized');
     }
 
-    if (task.user.toString() !== req.user._id.toString()) {
-      res.status(401);
-      throw new Error('Not authorized to delete this task');
-    }
-
-    await task.deleteOne();
     res.status(200).json({ id: req.params.id });
   } catch (error) {
     next(error);

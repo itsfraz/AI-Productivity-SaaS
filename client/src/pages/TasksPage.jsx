@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import api from '../services/api';
 import TaskBoard from '../components/TaskBoard';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Plus, X } from 'lucide-react';
 
 const TasksPage = () => {
@@ -11,60 +11,64 @@ const TasksPage = () => {
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
 
   useEffect(() => {
+    let cancelled = false;
+    const fetchTasks = async () => {
+      try {
+        const { data } = await api.get('/tasks');
+        if (!cancelled) setTasks(data);
+      } catch (error) {
+        console.error('Failed to fetch tasks', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchTasks();
+    return () => { cancelled = true; };
   }, []);
 
-  const fetchTasks = async () => {
-    try {
-      const { data } = await api.get('/tasks');
-      setTasks(data);
-    } catch (error) {
-      console.error('Failed to fetch tasks', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleTaskMove = async (taskId, newStatus) => {
-    // Optimistic UI update
-    const previousTasks = [...tasks];
-    setTasks(tasks.map(t => t._id === taskId ? { ...t, status: newStatus } : t));
-
+  const handleTaskMove = useCallback(async (taskId, newStatus) => {
+    setTasks(prev => prev.map(t => t._id === taskId ? { ...t, status: newStatus } : t));
     try {
       await api.put(`/tasks/${taskId}`, { status: newStatus });
     } catch (error) {
-      setTasks(previousTasks); // Revert on failure
       console.error('Failed to move task');
     }
-  };
+  }, []);
 
-  const handleDelete = async (taskId) => {
+  const handleDelete = useCallback(async (taskId) => {
+    setTasks(prev => prev.filter(t => t._id !== taskId));
     try {
       await api.delete(`/tasks/${taskId}`);
-      setTasks(tasks.filter(t => t._id !== taskId));
     } catch (error) {
       console.error('Failed to delete task');
     }
-  };
+  }, []);
 
-  const handleComplete = async (taskId) => {
+  const handleComplete = useCallback((taskId) => {
     handleTaskMove(taskId, 'completed');
-  };
+  }, [handleTaskMove]);
 
-  const handleCreateTask = async (e) => {
+  const handleCreateTask = useCallback(async (e) => {
     e.preventDefault();
     try {
       const { data } = await api.post('/tasks', newTask);
-      setTasks([data, ...tasks]);
+      setTasks(prev => [data, ...prev]);
       setShowModal(false);
       setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
     } catch (error) {
       console.error('Failed to create task');
     }
-  };
+  }, [newTask]);
 
   if (loading) {
-    return <div className="flex h-64 items-center justify-center text-gray-500">Loading tasks...</div>;
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-3 border-zinc-200 dark:border-zinc-700 border-t-primary-500 rounded-full animate-spin" />
+          <span className="text-sm text-gray-500 dark:text-gray-400">Loading tasks...</span>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -98,11 +102,9 @@ const TasksPage = () => {
       {/* Create Task Modal */}
       <AnimatePresence>
         {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+            <div 
+              onClick={e => e.stopPropagation()}
               className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-border">
@@ -148,7 +150,7 @@ const TasksPage = () => {
                   </button>
                 </div>
               </form>
-            </motion.div>
+            </div>
           </div>
         )}
       </AnimatePresence>

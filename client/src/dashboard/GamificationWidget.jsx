@@ -5,14 +5,8 @@ import { useAuth } from '../context/AuthContext';
 const GamificationWidget = () => {
   const { user } = useAuth();
   
-  // Example hardcoded achievements if user doesn't have any yet
-  const defaultAchievements = [
-    { badgeName: "First Task Completed", icon: <Star className="w-5 h-5 text-yellow-500" />, unlockedAt: new Date() },
-    { badgeName: "7 Day Streak", icon: <Trophy className="w-5 h-5 text-purple-500" />, unlockedAt: new Date(Date.now() - 86400000) }
-  ];
-
-  const achievements = user?.achievements?.length > 0 ? user.achievements : defaultAchievements;
-  const points = user?.points || 150; // Mock 150 points if 0
+  const achievements = user?.achievements || [];
+  const points = user?.points || 0;
   const level = Math.floor(points / 100) + 1;
   const nextLevelPoints = level * 100;
   const progressPercent = (points % 100);
@@ -68,12 +62,18 @@ const GamificationWidget = () => {
         <div className="w-full pt-4 border-t border-gray-100 dark:border-dark-border">
           <h4 className="text-xs font-semibold text-gray-400 dark:text-dark-muted uppercase tracking-wider mb-3">Recent Badges</h4>
           <div className="flex gap-2">
-            {achievements.slice(0, 3).map((ach, idx) => (
-              <div key={idx} className="flex-1 bg-white/60 dark:bg-dark-bg/60 p-2 rounded-lg border border-white dark:border-white/5 flex flex-col items-center justify-center text-center gap-1" title={ach.badgeName}>
-                {ach.icon || <Shield className="w-5 h-5 text-blue-500" />}
-                <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 truncate w-full">{ach.badgeName}</span>
+            {achievements.length > 0 ? (
+              achievements.slice(0, 3).map((ach, idx) => (
+                <div key={idx} className="flex-1 bg-white/60 dark:bg-dark-bg/60 p-2 rounded-lg border border-white dark:border-white/5 flex flex-col items-center justify-center text-center gap-1" title={ach.badgeName}>
+                  {ach.icon || <Shield className="w-5 h-5 text-blue-500" />}
+                  <span className="text-[10px] font-medium text-gray-600 dark:text-gray-400 truncate w-full">{ach.badgeName}</span>
+                </div>
+              ))
+            ) : (
+              <div className="w-full text-center py-2 text-xs text-gray-400 dark:text-dark-muted border border-dashed border-gray-200 dark:border-dark-border rounded-lg">
+                No badges yet. Start completing tasks!
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

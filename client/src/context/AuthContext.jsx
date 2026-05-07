@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import api from '../services/api';
 
 const AuthContext = createContext();
@@ -8,40 +8,52 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
     // Check if user is logged in on mount
     const fetchUser = async () => {
       try {
         const { data } = await api.get('/auth/me');
-        setUser(data);
+        if (!cancelled) setUser(data);
       } catch (error) {
-        setUser(null);
+        if (!cancelled) setUser(null);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     fetchUser();
+    return () => { cancelled = true; };
   }, []);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     setUser(data);
     return data;
-  };
+  }, []);
 
-  const register = async (name, email, password) => {
+  const register = useCallback(async (name, email, password) => {
     const { data } = await api.post('/auth/register', { name, email, password });
     setUser(data);
     return data;
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await api.post('/auth/logout');
     setUser(null);
-  };
+  }, []);
+
+  // Memoize context value to prevent re-renders of all consumers
+  // when AuthProvider re-renders for unrelated reasons
+  const value = useMemo(() => ({
+    user,
+    loading,
+    login,
+    register,
+    logout
+  }), [user, loading, login, register, logout]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
-      {!loading && children}
+    <AuthContext.Provider value={value}>
+      {children}
     </AuthContext.Provider>
   );
 };

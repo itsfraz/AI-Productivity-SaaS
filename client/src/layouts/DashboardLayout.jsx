@@ -1,11 +1,12 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import { memo, useCallback } from 'react';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, CheckSquare, Activity, Moon, Sun, Settings, TrendingUp, Clock, Zap } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import NotificationBell from '../components/NotificationBell';
 
-const SidebarItem = ({ icon: Icon, label, to, isActive }) => (
+const SidebarItem = memo(({ icon: Icon, label, to, isActive }) => (
   <Link 
     to={to} 
     className="relative group block mb-1.5 outline-none"
@@ -26,20 +27,21 @@ const SidebarItem = ({ icon: Icon, label, to, isActive }) => (
       <span className="text-[15px]">{label}</span>
     </div>
   </Link>
-);
+));
 
 const DashboardLayout = () => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth();
   const location = useLocation();
 
+  const handleLogout = useCallback(async () => {
+    await logout();
+  }, [logout]);
+
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans">
       {/* Sidebar */}
-      <motion.aside 
-        initial={{ x: -250, opacity: 0 }}
-        animate={{ x: 0, opacity: 1 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+      <aside 
         className="w-[260px] bg-white dark:bg-[#09090b] border-r border-zinc-200 dark:border-zinc-800/60 flex flex-col z-20 flex-shrink-0"
       >
         <div className="h-[72px] flex items-center px-6 border-b border-zinc-200/50 dark:border-zinc-800/40">
@@ -70,7 +72,7 @@ const DashboardLayout = () => {
             <span className="text-[15px] font-medium">{isDark ? 'Light Mode' : 'Dark Mode'}</span>
           </button>
         </div>
-      </motion.aside>
+      </aside>
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative">
@@ -94,7 +96,7 @@ const DashboardLayout = () => {
                 </div>
                 <div className="p-1.5">
                   <button 
-                    onClick={async () => { await logout(); }}
+                    onClick={handleLogout}
                     className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 rounded-lg transition-colors font-medium"
                   >
                     Log out
@@ -105,21 +107,12 @@ const DashboardLayout = () => {
           </div>
         </header>
 
-        {/* Page Content */}
+        {/* Page Content - No more AnimatePresence remounting! */}
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar relative">
           <div className="absolute top-0 inset-x-0 h-64 bg-gradient-to-b from-primary-500/5 dark:from-primary-500/10 to-transparent pointer-events-none -z-10" />
-          <AnimatePresence mode="wait">
-            <motion.div 
-              key={location.pathname}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-              className="max-w-[1200px] mx-auto w-full"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <div className="max-w-[1200px] mx-auto w-full">
+            <Outlet />
+          </div>
         </div>
       </main>
     </div>

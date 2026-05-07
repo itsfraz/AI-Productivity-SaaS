@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { memo, useCallback, useMemo } from 'react';
 import { GripVertical, Clock, Tag, Trash2, CheckCircle, AlertCircle } from 'lucide-react';
 
 const priorityColors = {
@@ -9,16 +8,17 @@ const priorityColors = {
   urgent: 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400',
 };
 
-const TaskCard = ({ task, onDragStart, onDelete, onComplete }) => {
+const TaskCard = memo(({ task, onDragStart, onDelete, onComplete }) => {
+  const isOverdue = task.deadline && new Date(task.deadline) < new Date() && task.status !== 'completed';
+  const formattedDeadline = task.deadline 
+    ? new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) 
+    : null;
+
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
+    <div
       draggable
       onDragStart={(e) => onDragStart(e, task._id)}
-      className="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-all group"
+      className="bg-white dark:bg-dark-card p-4 rounded-xl border border-gray-200 dark:border-dark-border shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow group"
     >
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -54,58 +54,69 @@ const TaskCard = ({ task, onDragStart, onDelete, onComplete }) => {
           <Tag className="w-3.5 h-3.5" />
           {task.category}
         </div>
-        {task.deadline && (
-          <div className={`flex items-center gap-1.5 text-xs ${new Date(task.deadline) < new Date() && task.status !== 'completed' ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-dark-muted'}`}>
-            {new Date(task.deadline) < new Date() && task.status !== 'completed' ? <AlertCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-            {new Date(task.deadline).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+        {formattedDeadline && (
+          <div className={`flex items-center gap-1.5 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-dark-muted'}`}>
+            {isOverdue ? <AlertCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+            {formattedDeadline}
           </div>
         )}
       </div>
-    </motion.div>
+    </div>
   );
-};
+});
 
-const TaskBoard = ({ tasks, onTaskMove, onDelete, onComplete }) => {
-  const columns = [
+const TaskBoard = memo(({ tasks, onTaskMove, onDelete, onComplete }) => {
+  const columns = useMemo(() => [
     { id: 'todo', title: 'To Do', color: 'bg-slate-100 dark:bg-slate-800' },
     { id: 'in-progress', title: 'In Progress', color: 'bg-blue-50 dark:bg-blue-900/20' },
     { id: 'completed', title: 'Completed', color: 'bg-green-50 dark:bg-green-900/20' }
-  ];
+  ], []);
 
-  const handleDragStart = (e, taskId) => {
+  // Pre-compute tasks per column once instead of filtering 3x per column render
+  const tasksByColumn = useMemo(() => {
+    const map = { 'todo': [], 'in-progress': [], 'completed': [] };
+    tasks.forEach(task => {
+      if (map[task.status]) {
+        map[task.status].push(task);
+      }
+    });
+    return map;
+  }, [tasks]);
+
+  const handleDragStart = useCallback((e, taskId) => {
     e.dataTransfer.setData('taskId', taskId);
-  };
+  }, []);
 
-  const handleDragOver = (e) => {
-    e.preventDefault(); // Necessary to allow dropping
-  };
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+  }, []);
 
-  const handleDrop = (e, columnId) => {
+  const handleDrop = useCallback((e, columnId) => {
     e.preventDefault();
     const taskId = e.dataTransfer.getData('taskId');
-    onTaskMove(taskId, columnId);
-  };
+    if (taskId) onTaskMove(taskId, columnId);
+  }, [onTaskMove]);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-[600px]">
-      {columns.map((column) => (
-        <div 
-          key={column.id}
-          className={`${column.color} rounded-2xl p-4 flex flex-col`}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, column.id)}
-        >
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className="font-semibold text-gray-700 dark:text-gray-300">{column.title}</h3>
-            <span className="bg-white dark:bg-dark-card text-gray-500 dark:text-dark-muted text-xs font-bold px-2 py-1 rounded-full shadow-sm">
-              {tasks.filter(t => t.status === column.id).length}
-            </span>
-          </div>
+      {columns.map((column) => {
+        const columnTasks = tasksByColumn[column.id];
+        return (
+          <div 
+            key={column.id}
+            className={`${column.color} rounded-2xl p-4 flex flex-col`}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, column.id)}
+          >
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="font-semibold text-gray-700 dark:text-gray-300">{column.title}</h3>
+              <span className="bg-white dark:bg-dark-card text-gray-500 dark:text-dark-muted text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                {columnTasks.length}
+              </span>
+            </div>
 
-          <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
-            {tasks
-              .filter(task => task.status === column.id)
-              .map(task => (
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {columnTasks.map(task => (
                 <TaskCard 
                   key={task._id} 
                   task={task} 
@@ -114,17 +125,18 @@ const TaskBoard = ({ tasks, onTaskMove, onDelete, onComplete }) => {
                   onComplete={onComplete}
                 />
               ))}
-            
-            {tasks.filter(t => t.status === column.id).length === 0 && (
-              <div className="h-24 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-xl flex items-center justify-center text-sm text-gray-400">
-                Drop tasks here
-              </div>
-            )}
+              
+              {columnTasks.length === 0 && (
+                <div className="h-24 border-2 border-dashed border-gray-300 dark:border-dark-border rounded-xl flex items-center justify-center text-sm text-gray-400">
+                  Drop tasks here
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
-};
+});
 
 export default TaskBoard;

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { motion } from 'framer-motion';
 import { Activity, CheckCircle, Zap, ArrowRight, Sparkles } from 'lucide-react';
@@ -5,33 +6,64 @@ import StatCard from '../dashboard/StatCard';
 import ActivityChart from '../dashboard/ActivityChart';
 import AIWidget from '../dashboard/AIWidget';
 import GamificationWidget from '../dashboard/GamificationWidget';
+import api from '../services/api';
+import { Link } from 'react-router-dom';
 
 const DashboardPage = () => {
   const { user } = useAuth();
+  const [tasks, setTasks] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchDashboardData = async () => {
+      try {
+        const [tasksRes, analyticsRes] = await Promise.all([
+          api.get('/tasks'),
+          api.get('/analytics')
+        ]);
+        if (!cancelled) {
+          setTasks(tasksRes.data);
+          setAnalytics(analyticsRes.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch dashboard data', error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    fetchDashboardData();
+    return () => { cancelled = true; };
+  }, []);
+
+  const completedTasksCount = analytics?.stats?.completedTasks ?? 0;
+  const totalTasksCount = analytics?.stats?.totalTasks ?? 0;
+  const pendingTasksCount = totalTasksCount - completedTasksCount;
 
   const stats = [
     {
       title: "Productivity Score",
-      value: `${user?.productivityScore || 84}%`,
+      value: `${analytics?.productivityScore ?? user?.productivityScore ?? 0}%`,
       subtitle: "vs last week",
-      trend: "up",
-      trendValue: "12%",
+      trend: "neutral",
+      trendValue: "0%",
       icon: Activity
     },
     {
       title: "Active Streak",
-      value: `${user?.currentStreak || 12} Days`,
-      subtitle: "Personal best: 21",
+      value: `${user?.currentStreak ?? 0} Days`,
+      subtitle: `Personal best: ${user?.currentStreak ?? 0}`,
       trend: "neutral",
       trendValue: "0",
       icon: Zap
     },
     {
       title: "Tasks Completed",
-      value: "5 / 8",
-      subtitle: "3 tasks remaining",
-      trend: "up",
-      trendValue: "2",
+      value: `${completedTasksCount} / ${totalTasksCount || 1}`,
+      subtitle: `${pendingTasksCount} tasks remaining`,
+      trend: "neutral",
+      trendValue: "0",
       icon: CheckCircle
     }
   ];
@@ -53,7 +85,7 @@ const DashboardPage = () => {
             Good Morning, <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-500 to-purple-500">{user?.name?.split(' ')[0] || 'User'}</span>
           </h1>
           <p className="text-zinc-500 dark:text-zinc-400 mt-2 text-[15px]">
-            Ready to conquer the day? You have 3 pending tasks.
+            Ready to conquer the day? You have {pendingTasksCount} pending tasks.
           </p>
         </motion.div>
         
@@ -84,7 +116,7 @@ const DashboardPage = () => {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-8">
         <div className="lg:col-span-2">
-          <ActivityChart />
+          <ActivityChart data={analytics?.trends} />
         </div>
 
         <div className="col-span-1 flex flex-col gap-6 h-full">
@@ -106,40 +138,47 @@ const DashboardPage = () => {
             <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Action Items</h2>
             <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">Your priority tasks for today</p>
           </div>
-          <button className="flex items-center gap-1.5 text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500 transition-colors group">
+          <Link to="/tasks" className="flex items-center gap-1.5 text-sm font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-500 transition-colors group">
             View All <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-          </button>
+          </Link>
         </div>
         
         <div className="space-y-3">
-          {[
-            { title: "Review Q3 Marketing Deck", time: "10:00 AM", tag: "Work", done: true },
-            { title: "Design System Updates", time: "1:00 PM", tag: "Design", done: false },
-            { title: "Weekly Sync with Engineering", time: "3:30 PM", tag: "Meeting", done: false }
-          ].map((task, i) => (
-            <motion.div 
-              key={i} 
-              whileHover={{ scale: 1.01 }}
-              className="group flex items-center justify-between p-4 rounded-xl bg-zinc-50/50 hover:bg-white dark:bg-zinc-900/50 dark:hover:bg-zinc-800/80 border border-zinc-200/50 dark:border-zinc-800/50 hover:shadow-sm transition-all duration-200 cursor-pointer"
-            >
-              <div className="flex items-center gap-4">
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${task.done ? 'bg-primary-500 border-primary-500' : 'border-zinc-300 dark:border-zinc-600 group-hover:border-primary-400'}`}>
-                  {task.done && <CheckCircle className="w-4 h-4 text-white" strokeWidth={3} />}
-                </div>
-                <span className={`text-[15px] font-medium ${task.done ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200'}`}>
-                  {task.title}
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-xs font-semibold px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-md">
-                  {task.tag}
-                </span>
-                <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500 w-16 text-right">
-                  {task.time}
-                </span>
-              </div>
-            </motion.div>
-          ))}
+          {loading ? (
+            <div className="text-center py-4 text-zinc-500">Loading tasks...</div>
+          ) : tasks.length === 0 ? (
+            <div className="text-center py-4 text-zinc-500 bg-zinc-50/50 dark:bg-zinc-900/50 rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
+              No tasks for today. Enjoy your day!
+            </div>
+          ) : (
+            tasks.slice(0, 5).map((task) => {
+              const isDone = task.status === 'completed';
+              return (
+                <motion.div 
+                  key={task._id} 
+                  whileHover={{ scale: 1.01 }}
+                  className="group flex items-center justify-between p-4 rounded-xl bg-zinc-50/50 hover:bg-white dark:bg-zinc-900/50 dark:hover:bg-zinc-800/80 border border-zinc-200/50 dark:border-zinc-800/50 hover:shadow-sm transition-all duration-200 cursor-pointer"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isDone ? 'bg-primary-500 border-primary-500' : 'border-zinc-300 dark:border-zinc-600 group-hover:border-primary-400'}`}>
+                      {isDone && <CheckCircle className="w-4 h-4 text-white" strokeWidth={3} />}
+                    </div>
+                    <span className={`text-[15px] font-medium ${isDone ? 'text-zinc-400 line-through dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-200'}`}>
+                      {task.title}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs font-semibold px-2.5 py-1 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 rounded-md">
+                      {task.category || 'General'}
+                    </span>
+                    <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500 w-24 text-right">
+                      {task.deadline ? new Date(task.deadline).toLocaleDateString() : 'No date'}
+                    </span>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
         </div>
       </motion.div>
     </div>

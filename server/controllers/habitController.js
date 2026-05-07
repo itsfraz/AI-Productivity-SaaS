@@ -5,7 +5,7 @@ import Habit from '../models/Habit.js';
 // @access  Private
 export const getHabits = async (req, res, next) => {
   try {
-    const habits = await Habit.find({ user: req.user._id }).sort({ createdAt: -1 });
+    const habits = await Habit.find({ user: req.user._id }).sort({ createdAt: -1 }).lean();
     res.status(200).json(habits);
   } catch (error) {
     next(error);
@@ -103,19 +103,16 @@ export const logHabit = async (req, res, next) => {
 // @access  Private
 export const deleteHabit = async (req, res, next) => {
   try {
-    const habit = await Habit.findById(req.params.id);
+    const habit = await Habit.findOneAndDelete({
+      _id: req.params.id,
+      user: req.user._id
+    });
 
     if (!habit) {
       res.status(404);
-      throw new Error('Habit not found');
+      throw new Error('Habit not found or not authorized');
     }
 
-    if (habit.user.toString() !== req.user._id.toString()) {
-      res.status(401);
-      throw new Error('Not authorized');
-    }
-
-    await habit.deleteOne();
     res.status(200).json({ id: req.params.id });
   } catch (error) {
     next(error);

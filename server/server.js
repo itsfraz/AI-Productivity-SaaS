@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import { connectDB } from './config/db.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 
@@ -16,6 +17,7 @@ const app = express();
 
 // Security & Logging Middleware
 app.use(helmet());
+app.use(compression()); // Gzip compress all responses
 app.use(cors({ origin: true, credentials: true }));
 app.use(morgan('dev'));
 

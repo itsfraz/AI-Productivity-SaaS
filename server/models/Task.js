@@ -42,5 +42,8 @@ const taskSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Compound index for the most common query: tasks by user, sorted by deadline
+taskSchema.index({ user: 1, status: 1, deadline: 1 });
+
 const Task = mongoose.model('Task', taskSchema);
 export default Task;
