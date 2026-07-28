@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Bell, Check, Trophy, Calendar, AlertCircle } from 'lucide-react';
+import { Bell, Check, Trophy, Calendar, AlertCircle, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 
@@ -51,6 +51,7 @@ const NotificationBell = () => {
       case 'achievement': return <Trophy className="w-5 h-5 text-yellow-500" />;
       case 'reminder': return <Calendar className="w-5 h-5 text-blue-500" />;
       case 'alert': return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'ai_nudge': return <Sparkles className="w-5 h-5 text-primary-500" />;
       default: return <Bell className="w-5 h-5 text-indigo-500" />;
     }
   };
@@ -98,7 +99,7 @@ const NotificationBell = () => {
                       <div 
                         key={notif._id} 
                         onClick={() => { if(!notif.read) markAsRead(notif._id); }}
-                        className={`p-4 flex items-start gap-3 transition-colors cursor-pointer ${notif.read ? 'opacity-60 bg-transparent' : 'bg-blue-50/30 dark:bg-primary-900/10 hover:bg-gray-50 dark:hover:bg-dark-border/50'}`}
+                        className={`p-4 flex items-start gap-3 transition-colors cursor-pointer ${notif.read ? 'opacity-60 bg-transparent' : (notif.type === 'ai_nudge' ? 'bg-primary-50/50 dark:bg-primary-900/20 hover:bg-primary-100/50 dark:hover:bg-primary-900/30' : 'bg-blue-50/30 dark:bg-zinc-800/50 hover:bg-gray-50 dark:hover:bg-dark-border/50')} ${notif.type === 'ai_nudge' ? 'border-l-2 border-primary-500' : ''}`}
                       >
                         <div className="mt-0.5">{getIcon(notif.type)}</div>
                         <div className="flex-1">

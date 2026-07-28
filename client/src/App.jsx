@@ -4,6 +4,18 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+});
+
 
 // Lazy-loaded page chunks — each becomes its own bundle split
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
@@ -26,8 +38,9 @@ const PageLoader = () => (
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
         <Router>
           <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -48,8 +61,10 @@ function App() {
             </Routes>
           </Suspense>
         </Router>
-      </AuthProvider>
-    </ThemeProvider>
+        </AuthProvider>
+      </ThemeProvider>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   );
 }
 

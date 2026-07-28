@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useCallback, memo, useMemo } from 'react';
 import api from '../services/api';
 import { AnimatePresence } from 'framer-motion';
 import { Plus, Flame, Shield, Trash2, Check, X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import QuickAddBar from '../components/QuickAddBar';
 
 const HeatmapSquare = memo(({ completed, isToday }) => (
   <div className={`w-6 h-6 rounded-md border ${
@@ -16,7 +18,6 @@ const HeatmapSquare = memo(({ completed, isToday }) => (
 const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
   const completed = isCompletedToday;
   
-  // Generate past week data using actual completionLog
   const pastWeek = useMemo(() => {
     const squares = [];
     for(let i=6; i>=0; i--) {
@@ -25,7 +26,6 @@ const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
       d.setHours(0,0,0,0);
       const isToday = i === 0;
       
-      // Check completionLog for this date
       let dayCompleted = false;
       if (isToday) {
         dayCompleted = completed;
@@ -47,7 +47,6 @@ const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
 
   return (
     <div className="glass-card p-6 relative overflow-hidden group">
-      {/* Status Header */}
       <div className="flex justify-between items-start mb-4">
         <h3 className="font-bold text-lg text-gray-900 dark:text-white">{habit.title}</h3>
         <div className="flex items-center gap-2">
@@ -66,7 +65,6 @@ const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
         </div>
       </div>
 
-      {/* Streak Info */}
       <div className="flex items-end gap-2 mb-6">
         <Flame className={`w-8 h-8 ${habit.streak > 0 ? 'text-orange-500' : 'text-gray-300 dark:text-dark-muted'}`} />
         <div>
@@ -75,7 +73,6 @@ const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
         </div>
       </div>
 
-      {/* Heatmap Visualization */}
       <div className="mb-6">
         <div className="text-xs text-gray-500 dark:text-dark-muted mb-2 font-medium">Past 7 Days</div>
         <div className="flex gap-1.5">
@@ -83,7 +80,6 @@ const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
         </div>
       </div>
 
-      {/* Action Button */}
       <button 
         onClick={() => onLog(habit._id)}
         disabled={completed}
@@ -106,28 +102,69 @@ const HabitCard = memo(({ habit, isCompletedToday, onLog, onDelete }) => {
 });
 
 const HabitsPage = () => {
-  const [habits, setHabits] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetchHabits = async () => {
-      try {
-        const { data } = await api.get('/habits');
-        if (!cancelled) setHabits(data);
-      } catch (error) {
-        console.error('Failed to fetch habits', error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchHabits();
-    return () => { cancelled = true; };
-  }, []);
+  const { data: habits = [], isLoading: loading } = useQuery({
+    queryKey: ['habits'],
+    queryFn: async () => {
+      const { data } = await api.get('/habits');
+      return data;
+    }
+  });
 
-  // Check if a habit was completed today
+  const createHabitMutation = useMutation({
+    mutationFn: async (title) => {
+      const { data } = await api.post('/habits', { title, frequency: 'daily' });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+      setNewTitle('');
+      setShowModal(false);
+    }
+  });
+
+  const deleteHabitMutation = useMutation({
+    mutationFn: async (habitId) => {
+      await api.delete(`/habits/${habitId}`);
+    },
+    onMutate: async (habitId) => {
+      await queryClient.cancelQueries({ queryKey: ['habits'] });
+      const previousHabits = queryClient.getQueryData(['habits']);
+      queryClient.setQueryData(['habits'], old => old?.filter(h => h._id !== habitId));
+      return { previousHabits };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['habits'], context.previousHabits);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+    }
+  });
+
+  const logHabitMutation = useMutation({
+    mutationFn: async (habitId) => {
+      const { data } = await api.post(`/habits/${habitId}/log`);
+      return data;
+    },
+    onSuccess: (data, habitId) => {
+      if (data.recoveryUsed) {
+        alert('Streak freeze used! Your streak was saved.');
+      }
+      queryClient.setQueryData(['habits'], old => 
+        old?.map(h => h._id === habitId ? data.habit : h)
+      );
+    },
+    onError: (err) => {
+      alert(err.response?.data?.message || 'Failed to log habit');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['habits'] });
+    }
+  });
+
   const isCompletedToday = useCallback((habit) => {
     if (!habit.lastCompleted) return false;
     const today = new Date();
@@ -137,39 +174,19 @@ const HabitsPage = () => {
            last.getFullYear() === today.getFullYear();
   }, []);
 
-  const handleLogHabit = useCallback(async (habitId) => {
-    try {
-      const { data } = await api.post(`/habits/${habitId}/log`);
-      if (data.recoveryUsed) {
-        alert('Streak freeze used! Your streak was saved.');
-      }
-      setHabits(prev => prev.map(h => h._id === habitId ? data.habit : h));
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to log habit');
-    }
-  }, []);
+  const handleLogHabit = useCallback((habitId) => {
+    logHabitMutation.mutate(habitId);
+  }, [logHabitMutation]);
 
-  const handleDelete = useCallback(async (habitId) => {
-    setHabits(prev => prev.filter(h => h._id !== habitId));
-    try {
-      await api.delete(`/habits/${habitId}`);
-    } catch (error) {
-      console.error('Failed to delete habit');
-    }
-  }, []);
+  const handleDelete = useCallback((habitId) => {
+    deleteHabitMutation.mutate(habitId);
+  }, [deleteHabitMutation]);
 
-  const handleCreate = useCallback(async (e) => {
+  const handleCreate = useCallback((e) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
-    try {
-      const { data } = await api.post('/habits', { title: newTitle, frequency: 'daily' });
-      setHabits(prev => [data, ...prev]);
-      setNewTitle('');
-      setShowModal(false);
-    } catch (error) {
-      console.error('Failed to create habit');
-    }
-  }, [newTitle]);
+    createHabitMutation.mutate(newTitle);
+  }, [newTitle, createHabitMutation]);
 
   if (loading) {
     return (
@@ -194,6 +211,8 @@ const HabitsPage = () => {
         </button>
       </header>
 
+      <QuickAddBar defaultType="habit" />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {habits.map((habit) => (
           <HabitCard
@@ -206,7 +225,6 @@ const HabitsPage = () => {
         ))}
       </div>
 
-      {/* Empty State */}
       {habits.length === 0 && (
         <div className="glass-card p-12 text-center">
           <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/20 text-orange-500 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -220,7 +238,6 @@ const HabitsPage = () => {
         </div>
       )}
 
-      {/* Create Modal */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
@@ -249,8 +266,8 @@ const HabitsPage = () => {
                   />
                 </div>
                 
-                <button type="submit" className="btn-primary w-full py-2.5">
-                  Start Habit
+                <button type="submit" className="btn-primary w-full py-2.5" disabled={createHabitMutation.isPending}>
+                  {createHabitMutation.isPending ? 'Starting...' : 'Start Habit'}
                 </button>
               </form>
             </div>

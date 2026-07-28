@@ -1,64 +1,91 @@
-import { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import api from '../services/api';
 import TaskBoard from '../components/TaskBoard';
 import { AnimatePresence } from 'framer-motion';
 import { Plus, X } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import QuickAddBar from '../components/QuickAddBar';
 
 const TasksPage = () => {
-  const [tasks, setTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
 
-  useEffect(() => {
-    let cancelled = false;
-    const fetchTasks = async () => {
-      try {
-        const { data } = await api.get('/tasks');
-        if (!cancelled) setTasks(data);
-      } catch (error) {
-        console.error('Failed to fetch tasks', error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchTasks();
-    return () => { cancelled = true; };
-  }, []);
-
-  const handleTaskMove = useCallback(async (taskId, newStatus) => {
-    setTasks(prev => prev.map(t => t._id === taskId ? { ...t, status: newStatus } : t));
-    try {
-      await api.put(`/tasks/${taskId}`, { status: newStatus });
-    } catch (error) {
-      console.error('Failed to move task');
+  const { data: tasks = [], isLoading: loading } = useQuery({
+    queryKey: ['tasks'],
+    queryFn: async () => {
+      const { data } = await api.get('/tasks');
+      return data;
     }
-  }, []);
+  });
 
-  const handleDelete = useCallback(async (taskId) => {
-    setTasks(prev => prev.filter(t => t._id !== taskId));
-    try {
+  const updateTaskMutation = useMutation({
+    mutationFn: async ({ taskId, status }) => {
+      const { data } = await api.put(`/tasks/${taskId}`, { status });
+      return data;
+    },
+    onMutate: async ({ taskId, status }) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData(['tasks']);
+      queryClient.setQueryData(['tasks'], old => 
+        old?.map(t => t._id === taskId ? { ...t, status } : t)
+      );
+      return { previousTasks };
+    },
+    onError: (err, newTodo, context) => {
+      queryClient.setQueryData(['tasks'], context.previousTasks);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: async (taskId) => {
       await api.delete(`/tasks/${taskId}`);
-    } catch (error) {
-      console.error('Failed to delete task');
+    },
+    onMutate: async (taskId) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] });
+      const previousTasks = queryClient.getQueryData(['tasks']);
+      queryClient.setQueryData(['tasks'], old => old?.filter(t => t._id !== taskId));
+      return { previousTasks };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['tasks'], context.previousTasks);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
     }
-  }, []);
+  });
 
-  const handleComplete = useCallback((taskId) => {
-    handleTaskMove(taskId, 'completed');
-  }, [handleTaskMove]);
-
-  const handleCreateTask = useCallback(async (e) => {
-    e.preventDefault();
-    try {
-      const { data } = await api.post('/tasks', newTask);
-      setTasks(prev => [data, ...prev]);
+  const createTaskMutation = useMutation({
+    mutationFn: async (task) => {
+      const { data } = await api.post('/tasks', task);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setShowModal(false);
       setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
-    } catch (error) {
-      console.error('Failed to create task');
     }
-  }, [newTask]);
+  });
+
+  const handleTaskMove = useCallback((taskId, newStatus) => {
+    updateTaskMutation.mutate({ taskId, status: newStatus });
+  }, [updateTaskMutation]);
+
+  const handleDelete = useCallback((taskId) => {
+    deleteTaskMutation.mutate(taskId);
+  }, [deleteTaskMutation]);
+
+  const handleComplete = useCallback((taskId) => {
+    updateTaskMutation.mutate({ taskId, status: 'completed' });
+  }, [updateTaskMutation]);
+
+  const handleCreateTask = useCallback((e) => {
+    e.preventDefault();
+    createTaskMutation.mutate(newTask);
+  }, [newTask, createTaskMutation]);
 
   if (loading) {
     return (
@@ -83,7 +110,8 @@ const TasksPage = () => {
         </button>
       </header>
 
-      {/* Task Filters Placeholder (Future Iteration) */}
+      <QuickAddBar defaultType="task" />
+
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
         {['All', 'Work', 'Personal', 'High Priority'].map(filter => (
           <button key={filter} className="px-4 py-1.5 rounded-full text-sm font-medium bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
@@ -99,7 +127,6 @@ const TasksPage = () => {
         onComplete={handleComplete}
       />
 
-      {/* Create Task Modal */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm" onClick={() => setShowModal(false)}>
@@ -145,8 +172,8 @@ const TasksPage = () => {
                   <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-100 dark:hover:bg-dark-border rounded-lg transition-colors">
                     Cancel
                   </button>
-                  <button type="submit" className="btn-primary">
-                    Create Task
+                  <button type="submit" className="btn-primary" disabled={createTaskMutation.isPending}>
+                    {createTaskMutation.isPending ? 'Creating...' : 'Create Task'}
                   </button>
                 </div>
               </form>

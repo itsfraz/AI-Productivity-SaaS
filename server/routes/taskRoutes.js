@@ -3,7 +3,8 @@ import {
   getTasks, 
   createTask, 
   updateTask, 
-  deleteTask 
+  deleteTask,
+  toggleSubtaskCompletion
 } from '../controllers/taskController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -19,5 +20,7 @@ router.route('/')
 router.route('/:id')
   .put(updateTask)
   .delete(deleteTask);
+
+router.patch('/:id/subtasks/:subtaskId', toggleSubtaskCompletion);
 
 export default router;

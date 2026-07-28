@@ -35,7 +35,16 @@ const userSchema = new mongoose.Schema({
     badgeName: String,
     icon: String,
     unlockedAt: { type: Date, default: Date.now }
-  }]
+  }],
+  lastAINudge: {
+    type: Date
+  },
+  focusRecommendation: {
+    duration: Number,
+    timeOfDay: String,
+    reason: String,
+    updatedAt: Date
+  }
 }, {
   timestamps: true,
 });

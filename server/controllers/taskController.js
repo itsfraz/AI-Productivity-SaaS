@@ -91,3 +91,29 @@ export const deleteTask = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Toggle subtask completion
+// @route   PATCH /api/tasks/:id/subtasks/:subtaskId
+// @access  Private
+export const toggleSubtaskCompletion = async (req, res, next) => {
+  try {
+    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    if (!task) {
+      res.status(404);
+      throw new Error('Task not found or not authorized');
+    }
+
+    const subtask = task.subtasks.id(req.params.subtaskId);
+    if (!subtask) {
+      res.status(404);
+      throw new Error('Subtask not found');
+    }
+
+    subtask.completed = !subtask.completed;
+    await task.save();
+
+    res.status(200).json(task);
+  } catch (error) {
+    next(error);
+  }
+};

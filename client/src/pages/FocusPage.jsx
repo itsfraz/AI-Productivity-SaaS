@@ -1,24 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, Pause, Square, Frown, Coffee, BrainCircuit, Activity } from 'lucide-react';
+import { Play, Pause, Square, Frown, Coffee, BrainCircuit, Activity, Sparkles, Info } from 'lucide-react';
 import api from '../services/api';
 
-const POMODORO_TIME = 25 * 60; // 25 minutes
 const SHORT_BREAK = 5 * 60; // 5 minutes
 
 const FocusPage = () => {
-  const [timeLeft, setTimeLeft] = useState(POMODORO_TIME);
+  const [focusDuration, setFocusDuration] = useState(25 * 60);
+  const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isActive, setIsActive] = useState(false);
   const [isBreak, setIsBreak] = useState(false);
   const [distractions, setDistractions] = useState(0);
   const [analytics, setAnalytics] = useState(null);
+  const [aiRecommendation, setAiRecommendation] = useState(null);
   
   // Track start time to log session correctly
   const sessionStartTime = useRef(null);
 
   useEffect(() => {
     fetchAnalytics();
+    fetchRecommendation();
   }, []);
+
+  const fetchRecommendation = async () => {
+    try {
+      const { data } = await api.get('/ai/focus-recommendation');
+      setAiRecommendation(data);
+      
+      const savedOverride = localStorage.getItem('focusDurationOverride');
+      if (savedOverride) {
+        const dur = parseInt(savedOverride, 10) * 60;
+        setFocusDuration(dur);
+        if (!isActive && !isBreak) setTimeLeft(dur);
+      } else if (data && data.duration) {
+        const dur = data.duration * 60;
+        setFocusDuration(dur);
+        if (!isActive && !isBreak) setTimeLeft(dur);
+      }
+    } catch (error) {
+      console.error('Failed to fetch AI recommendation');
+    }
+  };
 
   const fetchAnalytics = async () => {
     try {
@@ -55,9 +77,9 @@ const FocusPage = () => {
       const endTime = new Date();
       try {
         await api.post('/focus', {
-          startTime: sessionStartTime.current || new Date(Date.now() - POMODORO_TIME * 1000),
+          startTime: sessionStartTime.current || new Date(Date.now() - focusDuration * 1000),
           endTime,
-          durationInMinutes: 25,
+          durationInMinutes: Math.round(focusDuration / 60),
           distractionsLogged: distractions,
           sessionType: 'pomodoro'
         });
@@ -75,13 +97,13 @@ const FocusPage = () => {
     } else {
       // Break is over, back to work
       setIsBreak(false);
-      setTimeLeft(POMODORO_TIME);
+      setTimeLeft(focusDuration);
       setDistractions(0);
     }
   };
 
   const toggleTimer = () => {
-    if (!isActive && !isBreak && timeLeft === POMODORO_TIME) {
+    if (!isActive && !isBreak && timeLeft === focusDuration) {
       sessionStartTime.current = new Date();
     }
     setIsActive(!isActive);
@@ -90,9 +112,18 @@ const FocusPage = () => {
   const stopTimer = () => {
     setIsActive(false);
     setIsBreak(false);
-    setTimeLeft(POMODORO_TIME);
+    setTimeLeft(focusDuration);
     setDistractions(0);
     sessionStartTime.current = null;
+  };
+
+  const handleDurationChange = (e) => {
+    const newDuration = parseInt(e.target.value, 10);
+    setFocusDuration(newDuration * 60);
+    if (!isActive && !isBreak) {
+      setTimeLeft(newDuration * 60);
+    }
+    localStorage.setItem('focusDurationOverride', newDuration.toString());
   };
 
   const logDistraction = () => {
@@ -108,7 +139,7 @@ const FocusPage = () => {
   };
 
   // Calculate circular progress
-  const totalDuration = isBreak ? SHORT_BREAK : POMODORO_TIME;
+  const totalDuration = isBreak ? SHORT_BREAK : focusDuration;
   const progressPercent = ((totalDuration - timeLeft) / totalDuration) * 100;
 
   return (
@@ -123,19 +154,52 @@ const FocusPage = () => {
         {/* Main Timer Section */}
         <div className="lg:col-span-2 glass-card p-8 flex flex-col items-center justify-center min-h-[500px]">
           
-          <div className="flex gap-4 mb-10">
-            <button 
-              onClick={() => { setIsBreak(false); setTimeLeft(POMODORO_TIME); setIsActive(false); }}
-              className={`px-4 py-2 rounded-full font-medium transition-colors ${!isBreak ? 'bg-primary-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-gray-300'}`}
-            >
-              Pomodoro
-            </button>
-            <button 
-              onClick={() => { setIsBreak(true); setTimeLeft(SHORT_BREAK); setIsActive(false); }}
-              className={`px-4 py-2 rounded-full font-medium transition-colors ${isBreak ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-gray-300'}`}
-            >
-              Short Break
-            </button>
+          <div className="flex flex-col gap-4 mb-10 w-full max-w-md">
+            <div className="flex gap-4 justify-center">
+              <button 
+                onClick={() => { setIsBreak(false); setTimeLeft(focusDuration); setIsActive(false); }}
+                className={`px-4 py-2 rounded-full font-medium transition-colors ${!isBreak ? 'bg-primary-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-gray-300'}`}
+              >
+                Focus
+              </button>
+              <button 
+                onClick={() => { setIsBreak(true); setTimeLeft(SHORT_BREAK); setIsActive(false); }}
+                className={`px-4 py-2 rounded-full font-medium transition-colors ${isBreak ? 'bg-blue-500 text-white shadow-md' : 'bg-gray-100 text-gray-600 dark:bg-dark-border dark:text-gray-300'}`}
+              >
+                Short Break
+              </button>
+            </div>
+
+            {!isBreak && (
+              <div className="flex flex-col gap-2 mt-4">
+                <div className="flex justify-between items-center">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Session Length: {Math.round(focusDuration / 60)} min
+                  </label>
+                  {aiRecommendation && (
+                    <div className="group relative flex items-center gap-1 text-xs font-semibold text-primary-600 bg-primary-50 dark:bg-primary-900/30 px-2 py-1 rounded-full cursor-pointer">
+                      <Sparkles className="w-3 h-3" />
+                      AI-Tuned for You
+                      <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 w-64 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                        <div className="font-bold mb-1">Recommended Time: {aiRecommendation.timeOfDay}</div>
+                        <div>{aiRecommendation.reason}</div>
+                        <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <input 
+                  type="range" 
+                  min="5" 
+                  max="120" 
+                  step="5"
+                  disabled={isActive}
+                  value={Math.round(focusDuration / 60)} 
+                  onChange={handleDurationChange}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-dark-border accent-primary-500 disabled:opacity-50"
+                />
+              </div>
+            )}
           </div>
 
           {/* Circular Timer UI */}
@@ -173,7 +237,7 @@ const FocusPage = () => {
             </button>
             <button 
               onClick={stopTimer}
-              disabled={timeLeft === POMODORO_TIME && !isBreak}
+              disabled={timeLeft === focusDuration && !isBreak}
               className="w-12 h-12 rounded-full flex items-center justify-center bg-gray-100 dark:bg-dark-border text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
             >
               <Square className="w-5 h-5 fill-current" />

@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, CheckSquare, Activity, Moon, Sun, Settings, TrendingUp, Clock, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import NotificationBell from '../components/NotificationBell';
+import ChatAssistant from '../components/ChatAssistant';
+import CommandPalette from '../components/CommandPalette';
 
 const SidebarItem = memo(({ icon: Icon, label, to, isActive }) => (
   <Link 
@@ -115,6 +117,8 @@ const DashboardLayout = () => {
           </div>
         </div>
       </main>
+      <ChatAssistant />
+      <CommandPalette />
     </div>
   );
 };

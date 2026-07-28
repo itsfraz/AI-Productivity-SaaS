@@ -34,6 +34,7 @@ import aiRoutes from './routes/aiRoutes.js';
 import focusRoutes from './routes/focusRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import searchRoutes from './routes/searchRoutes.js';
 import { startCronJobs } from './jobs/cronJobs.js';
 
 app.use('/api/auth', authRoutes);
@@ -44,6 +45,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/focus', focusRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/search', searchRoutes);
 
 // Start background jobs
 startCronJobs();

@@ -37,7 +37,12 @@ const taskSchema = new mongoose.Schema({
   aiOptimized: {
     type: Boolean,
     default: false,
-  }
+  },
+  subtasks: [{
+    title: { type: String, required: true },
+    estimatedMinutes: { type: Number },
+    completed: { type: Boolean, default: false }
+  }]
 }, {
   timestamps: true,
 });

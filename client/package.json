@@ -18,8 +18,11 @@
   "dependencies": {
     "@tailwindcss/postcss": "^4.2.4",
     "@tailwindcss/vite": "^4.2.4",
+    "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-query-devtools": "^5.101.4",
     "axios": "^1.16.0",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.14.0",
     "react-router-dom": "^7.15.0",

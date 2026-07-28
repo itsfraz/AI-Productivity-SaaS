@@ -3,9 +3,11 @@ import api from '../services/api';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { TrendingUp, Activity, AlertTriangle, CheckCircle, Target } from 'lucide-react';
+import WeeklyReportCard from '../components/WeeklyReportCard';
 
 const AnalyticsPage = () => {
   const [analytics, setAnalytics] = useState(null);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,8 +16,12 @@ const AnalyticsPage = () => {
 
   const fetchAnalytics = async () => {
     try {
-      const { data } = await api.get('/analytics');
-      setAnalytics(data);
+      const [analyticsRes, reportsRes] = await Promise.all([
+        api.get('/analytics'),
+        api.get('/ai/reports')
+      ]);
+      setAnalytics(analyticsRes.data);
+      setReports(reportsRes.data);
     } catch (error) {
       console.error('Failed to fetch analytics', error);
     } finally {
@@ -132,6 +138,22 @@ const AnalyticsPage = () => {
         </motion.div>
 
       </div>
+
+      {/* Weekly Reports Section */}
+      {reports.length > 0 && (
+        <div className="mt-12 space-y-4">
+          <header className="mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">AI Weekly Retrospectives</h2>
+            <p className="text-gray-500 dark:text-dark-muted mt-1">Your personalized weekly performance breakdowns.</p>
+          </header>
+          
+          <div className="space-y-4">
+            {reports.map((report, idx) => (
+              <WeeklyReportCard key={report._id} report={report} isLatest={idx === 0} initiallyExpanded={idx === 0} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
