@@ -8,8 +8,12 @@ export const NVIDIA_FALLBACK_MODEL = 'meta/llama-3.1-70b-instruct';
 let openaiInstance = null;
 export const getOpenAIClient = () => {
   if (!openaiInstance) {
+    const apiKey = process.env.NVIDIA_API_KEY;
+    if (!apiKey) {
+      console.warn('[AI Warning] NVIDIA_API_KEY is not defined in environment variables. AI features may fail.');
+    }
     openaiInstance = new OpenAI({
-      apiKey: process.env.NVIDIA_API_KEY || 'dummy_key',
+      apiKey: apiKey || 'unconfigured_key',
       baseURL: 'https://integrate.api.nvidia.com/v1',
     });
   }
