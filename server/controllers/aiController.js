@@ -4,6 +4,7 @@ import Habit from '../models/Habit.js';
 import FocusSession from '../models/FocusSession.js';
 import Conversation from '../models/Conversation.js';
 import WeeklyReport from '../models/WeeklyReport.js';
+import User from '../models/User.js';
 import { z } from 'zod';
 
 const intentSchema = z.discriminatedUnion("type", [
@@ -510,15 +511,16 @@ Return ONLY a JSON object matching this schema:
     const recommendation = JSON.parse(rawText);
 
     // Save to user model
-    user.focusRecommendation = {
+    const focusRecommendation = {
       duration: recommendation.duration,
       timeOfDay: recommendation.timeOfDay,
       reason: recommendation.reason,
       updatedAt: now
     };
-    await user.save();
 
-    res.status(200).json(user.focusRecommendation);
+    await User.findByIdAndUpdate(user._id, { focusRecommendation });
+
+    res.status(200).json(focusRecommendation);
   } catch (error) {
     console.error("Focus Recommendation Error:", error);
     res.status(500).json({ error: "Failed to generate focus recommendation" });

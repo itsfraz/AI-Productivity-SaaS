@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { GripVertical, Clock, Tag, Trash2, CheckCircle, AlertCircle, Sparkles, Loader2, CheckSquare, Square, ChevronDown, ChevronUp } from 'lucide-react';
+import { GripVertical, Clock, Tag, Trash2, CheckCircle, AlertCircle, Sparkles, Loader2, CheckSquare, Square, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,7 +11,16 @@ const priorityColors = {
   urgent: 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400',
 };
 
-const TaskCard = memo(({ task, onDragStart, onDelete, onComplete }) => {
+const getCategoryColor = (category) => {
+  const cat = (category || 'General').toLowerCase();
+  if (cat.includes('work')) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800';
+  if (cat.includes('personal')) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800';
+  if (cat.includes('health') || cat.includes('fitness')) return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-800';
+  if (cat.includes('finance') || cat.includes('money')) return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800';
+  return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800';
+};
+
+const TaskCard = memo(({ task, onDragStart, onDelete, onComplete, onEdit }) => {
   const queryClient = useQueryClient();
   const [isBreakingDown, setIsBreakingDown] = useState(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -93,6 +102,11 @@ const TaskCard = memo(({ task, onDragStart, onDelete, onComplete }) => {
           </span>
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          {onEdit && (
+            <button onClick={() => onEdit(task)} className="p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-dark-border rounded" title="Edit Task">
+              <Pencil className="w-4 h-4" />
+            </button>
+          )}
           {!hasSubtasks && task.status !== 'completed' && (
             <button 
               onClick={handleBreakdown} 
@@ -183,9 +197,9 @@ const TaskCard = memo(({ task, onDragStart, onDelete, onComplete }) => {
       )}
 
       <div className="mt-auto pt-4 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-muted">
-          <Tag className="w-3.5 h-3.5" />
-          {task.category}
+        <div className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md border ${getCategoryColor(task.category)}`}>
+          <Tag className="w-3 h-3" />
+          {task.category || 'General'}
         </div>
         {formattedDeadline && (
           <div className={`flex items-center gap-1.5 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-dark-muted'}`}>
@@ -198,7 +212,7 @@ const TaskCard = memo(({ task, onDragStart, onDelete, onComplete }) => {
   );
 });
 
-const TaskBoard = memo(({ tasks, onTaskMove, onDelete, onComplete }) => {
+const TaskBoard = memo(({ tasks, onTaskMove, onDelete, onComplete, onEdit }) => {
   const columns = useMemo(() => [
     { id: 'todo', title: 'To Do', color: 'bg-slate-100 dark:bg-slate-800' },
     { id: 'in-progress', title: 'In Progress', color: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -256,6 +270,7 @@ const TaskBoard = memo(({ tasks, onTaskMove, onDelete, onComplete }) => {
                   onDragStart={handleDragStart}
                   onDelete={onDelete}
                   onComplete={onComplete}
+                  onEdit={onEdit}
                 />
               ))}
               

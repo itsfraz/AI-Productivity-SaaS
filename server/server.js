@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
+import rateLimit from 'express-rate-limit';
 import { connectDB } from './config/db.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 
@@ -18,8 +19,23 @@ const app = express();
 // Security & Logging Middleware
 app.use(helmet());
 app.use(compression()); // Gzip compress all responses
-app.use(cors({ origin: true, credentials: true }));
+
+const allowedOrigin = process.env.CLIENT_URL || true;
+app.use(cors({ origin: allowedOrigin, credentials: true }));
 app.use(morgan('dev'));
+
+// Rate Limiting
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' }
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { message: 'AI request limit reached. Please wait a few minutes before trying again.' }
+});
 
 // Body parsing Middleware
 app.use(express.json());
@@ -37,12 +53,12 @@ import userRoutes from './routes/userRoutes.js';
 import searchRoutes from './routes/searchRoutes.js';
 import { startCronJobs } from './jobs/cronJobs.js';
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/habits', habitRoutes);
 app.use('/api/analytics', analyticsRoutes);
-app.use('/api/ai', aiRoutes);
+app.use('/api/ai', aiLimiter, aiRoutes);
 app.use('/api/focus', focusRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/search', searchRoutes);

@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import api from '../services/api';
 import TaskBoard from '../components/TaskBoard';
 import { AnimatePresence } from 'framer-motion';
@@ -9,6 +9,8 @@ import QuickAddBar from '../components/QuickAddBar';
 const TasksPage = () => {
   const queryClient = useQueryClient();
   const [showModal, setShowModal] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState(null);
+  const [activeFilter, setActiveFilter] = useState('All');
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
 
   const { data: tasks = [], isLoading: loading } = useQuery({
@@ -18,6 +20,22 @@ const TasksPage = () => {
       return data;
     }
   });
+
+  const categories = useMemo(() => {
+    const defaults = ['All', 'Work', 'Personal', 'High Priority'];
+    const custom = tasks
+      .map(t => t.category)
+      .filter(c => c && !defaults.includes(c));
+    return [...defaults, ...Array.from(new Set(custom))];
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    if (activeFilter === 'All') return tasks;
+    if (activeFilter === 'High Priority') {
+      return tasks.filter(t => t.priority === 'high' || t.priority === 'urgent');
+    }
+    return tasks.filter(t => (t.category || 'General').toLowerCase() === activeFilter.toLowerCase());
+  }, [tasks, activeFilter]);
 
   const updateTaskMutation = useMutation({
     mutationFn: async ({ taskId, status }) => {
@@ -38,6 +56,19 @@ const TasksPage = () => {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
     },
+  });
+
+  const editTaskMutation = useMutation({
+    mutationFn: async ({ taskId, data }) => {
+      const res = await api.put(`/tasks/${taskId}`, data);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      setShowModal(false);
+      setEditingTaskId(null);
+      setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
+    }
   });
 
   const deleteTaskMutation = useMutation({
@@ -82,10 +113,32 @@ const TasksPage = () => {
     updateTaskMutation.mutate({ taskId, status: 'completed' });
   }, [updateTaskMutation]);
 
-  const handleCreateTask = useCallback((e) => {
+  const handleEditClick = useCallback((task) => {
+    setEditingTaskId(task._id);
+    setNewTask({
+      title: task.title || '',
+      description: task.description || '',
+      priority: task.priority || 'medium',
+      category: task.category || 'Work',
+      deadline: task.deadline ? task.deadline.split('T')[0] : ''
+    });
+    setShowModal(true);
+  }, []);
+
+  const handleOpenNewModal = useCallback(() => {
+    setEditingTaskId(null);
+    setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
+    setShowModal(true);
+  }, []);
+
+  const handleSaveTask = useCallback((e) => {
     e.preventDefault();
-    createTaskMutation.mutate(newTask);
-  }, [newTask, createTaskMutation]);
+    if (editingTaskId) {
+      editTaskMutation.mutate({ taskId: editingTaskId, data: newTask });
+    } else {
+      createTaskMutation.mutate(newTask);
+    }
+  }, [editingTaskId, newTask, editTaskMutation, createTaskMutation]);
 
   if (loading) {
     return (
@@ -105,7 +158,7 @@ const TasksPage = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Task Management</h1>
           <p className="text-gray-500 dark:text-dark-muted mt-1">Organize and prioritize your work efficiently.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
+        <button onClick={handleOpenNewModal} className="btn-primary">
           <Plus className="w-5 h-5 mr-1" /> New Task
         </button>
       </header>
@@ -113,18 +166,30 @@ const TasksPage = () => {
       <QuickAddBar defaultType="task" />
 
       <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-        {['All', 'Work', 'Personal', 'High Priority'].map(filter => (
-          <button key={filter} className="px-4 py-1.5 rounded-full text-sm font-medium bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border transition-colors">
-            {filter}
-          </button>
-        ))}
+        {categories.map(filter => {
+          const isActive = activeFilter === filter;
+          return (
+            <button 
+              key={filter} 
+              onClick={() => setActiveFilter(filter)}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                isActive 
+                  ? 'bg-primary-500 text-white shadow-md' 
+                  : 'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'
+              }`}
+            >
+              {filter}
+            </button>
+          );
+        })}
       </div>
 
       <TaskBoard 
-        tasks={tasks} 
+        tasks={filteredTasks} 
         onTaskMove={handleTaskMove} 
         onDelete={handleDelete}
         onComplete={handleComplete}
+        onEdit={handleEditClick}
       />
 
       <AnimatePresence>
@@ -135,13 +200,15 @@ const TasksPage = () => {
               className="bg-white dark:bg-dark-card rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-dark-border">
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Create New Task</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {editingTaskId ? 'Edit Task' : 'Create New Task'}
+                </h2>
                 <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               
-              <form onSubmit={handleCreateTask} className="p-6 space-y-4">
+              <form onSubmit={handleSaveTask} className="p-6 space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
                   <input required type="text" className="input-field" value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} placeholder="What needs to be done?" />
@@ -163,17 +230,28 @@ const TasksPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deadline</label>
-                    <input type="date" className="input-field" value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
+                    <input 
+                      type="text" 
+                      className="input-field" 
+                      value={newTask.category} 
+                      onChange={e => setNewTask({...newTask, category: e.target.value})} 
+                      placeholder="e.g. Work, Personal..." 
+                    />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deadline</label>
+                  <input type="date" className="input-field" value={newTask.deadline} onChange={e => setNewTask({...newTask, deadline: e.target.value})} />
                 </div>
 
                 <div className="pt-4 flex justify-end gap-3">
                   <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 text-gray-600 dark:text-gray-400 font-medium hover:bg-gray-100 dark:hover:bg-dark-border rounded-lg transition-colors">
                     Cancel
                   </button>
-                  <button type="submit" className="btn-primary" disabled={createTaskMutation.isPending}>
-                    {createTaskMutation.isPending ? 'Creating...' : 'Create Task'}
+                  <button type="submit" className="btn-primary" disabled={createTaskMutation.isPending || editTaskMutation.isPending}>
+                    {editingTaskId ? (editTaskMutation.isPending ? 'Saving...' : 'Save Changes') : (createTaskMutation.isPending ? 'Creating...' : 'Create Task')}
                   </button>
                 </div>
               </form>

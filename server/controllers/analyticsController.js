@@ -1,5 +1,6 @@
 import Task from '../models/Task.js';
 import Habit from '../models/Habit.js';
+import FocusSession from '../models/FocusSession.js';
 
 // @desc    Get comprehensive user analytics
 // @route   GET /api/analytics
@@ -82,10 +83,43 @@ export const getAnalytics = async (req, res, next) => {
       burnoutMessage = 'You have a growing backlog. Try using Focus Mode to clear small tasks.';
     }
 
-    // 4. Weekly Trend Analysis
-    // In a production app, we would query the FocusSession collection for daily aggregates.
-    // For now, we return empty so the UI shows 0s for new users.
+    // 4. Weekly Trend Analysis for past 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [recentSessions, recentCompletedTasks] = await Promise.all([
+      FocusSession.find({ user: userId, createdAt: { $gte: sevenDaysAgo } }).lean(),
+      Task.find({ user: userId, status: 'completed', updatedAt: { $gte: sevenDaysAgo } }).lean()
+    ]);
+
+    const daysMap = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const weeklyFocusData = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayName = daysMap[date.getDay()];
+      
+      const daySessions = recentSessions.filter(s => {
+        const d = new Date(s.createdAt);
+        return d.getDate() === date.getDate() && d.getMonth() === date.getMonth() && d.getFullYear() === date.getFullYear();
+      });
+
+      const dayTasks = recentCompletedTasks.filter(t => {
+        const d = new Date(t.updatedAt);
+        return d.getDate() === date.getDate() && d.getMonth() === date.getMonth() && d.getFullYear() === date.getFullYear();
+      });
+
+      const totalFocusMinutes = daySessions.reduce((acc, s) => acc + (s.durationInMinutes || 0), 0);
+      const focusHours = Math.round((totalFocusMinutes / 60) * 10) / 10;
+
+      weeklyFocusData.push({
+        day: dayName,
+        focusHours,
+        tasksDone: dayTasks.length
+      });
+    }
 
     res.status(200).json({
       productivityScore,
