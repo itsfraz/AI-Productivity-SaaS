@@ -172,7 +172,7 @@ const TasksPage = () => {
             <button 
               key={filter} 
               onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                 isActive 
                   ? 'bg-primary-500 text-white shadow-md' 
                   : 'bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-border'
@@ -219,7 +219,7 @@ const TasksPage = () => {
                   <textarea className="input-field min-h-[80px]" value={newTask.description} onChange={e => setNewTask({...newTask, description: e.target.value})} placeholder="Add details..." />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Priority</label>
                     <select className="input-field" value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value})}>

@@ -81,7 +81,7 @@ const CommandPalette = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -20 }}
           transition={{ duration: 0.15 }}
-          className="relative w-full max-w-2xl bg-white dark:bg-dark-card shadow-2xl rounded-2xl overflow-hidden border border-gray-100 dark:border-dark-border"
+          className="relative w-[calc(100%-2rem)] sm:w-full sm:max-w-2xl mx-auto bg-white dark:bg-dark-card shadow-2xl rounded-2xl overflow-hidden border border-gray-100 dark:border-dark-border"
         >
           {/* Search Input */}
           <div className="flex items-center px-4 py-4 border-b border-gray-100 dark:border-dark-border/50">

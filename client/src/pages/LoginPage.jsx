@@ -28,8 +28,8 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-[#000000] p-4 relative overflow-hidden font-sans">
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-primary-500/20 dark:bg-primary-500/10 rounded-full blur-[100px] pointer-events-none -z-10 animate-pulse-glow" />
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-purple-500/20 dark:bg-purple-500/10 rounded-full blur-[100px] pointer-events-none -z-10" />
+      <div className="absolute top-1/4 left-1/4 w-[300px] h-[300px] sm:w-[400px] sm:h-[400px] lg:w-[500px] lg:h-[500px] bg-primary-500/20 dark:bg-primary-500/10 rounded-full blur-[100px] pointer-events-none -z-10 animate-pulse-glow" />
+      <div className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] sm:w-[350px] sm:h-[350px] lg:w-[400px] lg:h-[400px] bg-purple-500/20 dark:bg-purple-500/10 rounded-full blur-[100px] pointer-events-none -z-10" />
 
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 10 }}

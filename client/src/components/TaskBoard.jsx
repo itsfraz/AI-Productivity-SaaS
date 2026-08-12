@@ -20,7 +20,7 @@ const getCategoryColor = (category) => {
   return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800';
 };
 
-const TaskCard = memo(({ task, onDragStart, onDelete, onComplete, onEdit }) => {
+const TaskCard = memo(({ task, onDragStart, onDelete, onComplete, onEdit, onTaskMove }) => {
   const queryClient = useQueryClient();
   const [isBreakingDown, setIsBreakingDown] = useState(false);
   const [showSubtasks, setShowSubtasks] = useState(false);
@@ -126,6 +126,22 @@ const TaskCard = memo(({ task, onDragStart, onDelete, onComplete, onEdit }) => {
             <Trash2 className="w-4 h-4" />
           </button>
         </div>
+        {onTaskMove && (
+          <div className="md:hidden ml-auto">
+            <select 
+              className="text-xs bg-gray-50 dark:bg-dark-bg border border-gray-200 dark:border-dark-border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-primary-500"
+              value={task.status || 'todo'}
+              onChange={(e) => {
+                e.stopPropagation();
+                onTaskMove(task._id, e.target.value);
+              }}
+            >
+              <option value="todo">To Do</option>
+              <option value="in-progress">In Progress</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        )}
       </div>
 
       <h4 className={`font-medium mb-1 ${task.status === 'completed' ? 'text-gray-400 line-through' : 'text-gray-900 dark:text-white'}`}>
@@ -245,7 +261,7 @@ const TaskBoard = memo(({ tasks, onTaskMove, onDelete, onComplete, onEdit }) => 
   }, [onTaskMove]);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-[600px]">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 h-full min-h-[400px] md:min-h-[600px]">
       {columns.map((column) => {
         const columnTasks = tasksByColumn[column.id];
         return (
@@ -271,6 +287,7 @@ const TaskBoard = memo(({ tasks, onTaskMove, onDelete, onComplete, onEdit }) => 
                   onDelete={onDelete}
                   onComplete={onComplete}
                   onEdit={onEdit}
+                  onTaskMove={onTaskMove}
                 />
               ))}
               
