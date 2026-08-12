@@ -34,6 +34,9 @@ const AnalyticsPage = () => {
 
   const { productivityScore, stats, burnout, trends } = analytics;
 
+  const hasFocusData = trends?.some(t => t.focusHours > 0);
+  const hasTaskData = trends?.some(t => t.tasksDone > 0);
+
   return (
     <div className="space-y-6">
       <header className="mb-8">
@@ -106,7 +109,13 @@ const AnalyticsPage = () => {
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Focus Hours (Weekly)</h2>
             <TrendingUp className="w-5 h-5 text-gray-400" />
           </div>
-          <div className="h-72 w-full">
+          <div className="h-72 w-full relative">
+            {!hasFocusData && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 dark:bg-[#09090b]/60 backdrop-blur-[2px] rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
+                <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm">No focus sessions this week</p>
+                <p className="text-zinc-400 dark:text-zinc-500 text-xs mt-1">Start a timer to see your trends!</p>
+              </div>
+            )}
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={trends} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
@@ -124,7 +133,13 @@ const AnalyticsPage = () => {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-bold text-gray-900 dark:text-white">Task Completion Volume</h2>
           </div>
-          <div className="h-72 w-full">
+          <div className="h-72 w-full relative">
+            {!hasTaskData && (
+              <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/60 dark:bg-[#09090b]/60 backdrop-blur-[2px] rounded-xl border border-zinc-200/50 dark:border-zinc-800/50">
+                <p className="text-zinc-500 dark:text-zinc-400 font-medium text-sm">No tasks completed this week</p>
+                <p className="text-zinc-400 dark:text-zinc-500 text-xs mt-1">Finish a task to see your volume!</p>
+              </div>
+            )}
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={trends} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />

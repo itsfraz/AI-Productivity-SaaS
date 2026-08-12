@@ -11,6 +11,7 @@ const TasksPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState(null);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
 
   const { data: tasks = [], isLoading: loading } = useQuery({
@@ -23,9 +24,13 @@ const TasksPage = () => {
 
   const categories = useMemo(() => {
     const defaults = ['All', 'Work', 'Personal', 'High Priority'];
-    const custom = tasks
-      .map(t => t.category)
-      .filter(c => c && !defaults.includes(c));
+    
+    // Normalize task categories to Title Case to match defaults and prevent duplicates
+    const normalizedCategories = tasks
+      .map(t => t.category || 'General')
+      .map(c => c.charAt(0).toUpperCase() + c.slice(1).toLowerCase());
+
+    const custom = normalizedCategories.filter(c => !defaults.includes(c));
     return [...defaults, ...Array.from(new Set(custom))];
   }, [tasks]);
 
@@ -67,6 +72,7 @@ const TasksPage = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setShowModal(false);
       setEditingTaskId(null);
+      setIsCustomCategory(false);
       setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
     }
   });
@@ -97,6 +103,7 @@ const TasksPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setShowModal(false);
+      setIsCustomCategory(false);
       setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
     }
   });
@@ -115,6 +122,7 @@ const TasksPage = () => {
 
   const handleEditClick = useCallback((task) => {
     setEditingTaskId(task._id);
+    setIsCustomCategory(false);
     setNewTask({
       title: task.title || '',
       description: task.description || '',
@@ -127,9 +135,17 @@ const TasksPage = () => {
 
   const handleOpenNewModal = useCallback(() => {
     setEditingTaskId(null);
-    setNewTask({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
+    setIsCustomCategory(false);
+    
+    // Default to the current active filter if it's a standard category, otherwise fallback to 'Work'
+    let defaultCategory = 'Work';
+    if (activeFilter !== 'All' && activeFilter !== 'High Priority') {
+      defaultCategory = activeFilter;
+    }
+    
+    setNewTask({ title: '', description: '', priority: 'medium', category: defaultCategory, deadline: '' });
     setShowModal(true);
-  }, []);
+  }, [activeFilter]);
 
   const handleSaveTask = useCallback((e) => {
     e.preventDefault();
@@ -231,13 +247,47 @@ const TasksPage = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
-                    <input 
-                      type="text" 
-                      className="input-field" 
-                      value={newTask.category} 
-                      onChange={e => setNewTask({...newTask, category: e.target.value})} 
-                      placeholder="e.g. Work, Personal..." 
-                    />
+                    {isCustomCategory ? (
+                      <div className="flex items-center gap-2">
+                        <input 
+                          autoFocus
+                          type="text" 
+                          className="input-field" 
+                          value={newTask.category} 
+                          onChange={e => setNewTask({...newTask, category: e.target.value})} 
+                          placeholder="Type new category..." 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setIsCustomCategory(false);
+                            setNewTask({...newTask, category: 'Work'});
+                          }}
+                          className="p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <select 
+                        className="input-field" 
+                        value={newTask.category} 
+                        onChange={e => {
+                          if (e.target.value === '___new___') {
+                            setIsCustomCategory(true);
+                            setNewTask({...newTask, category: ''});
+                          } else {
+                            setNewTask({...newTask, category: e.target.value});
+                          }
+                        }}
+                      >
+                        {categories.filter(c => c !== 'All' && c !== 'High Priority').map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="General">General</option>
+                        <option value="___new___" className="font-semibold text-primary-600">+ Add custom category...</option>
+                      </select>
+                    )}
                   </div>
                 </div>
 

@@ -11,14 +11,14 @@ const intentSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("task"),
     title: z.string(),
-    priority: z.enum(["low", "medium", "high", "urgent"]),
-    category: z.string().default("Work"),
-    deadline: z.string().optional()
+    priority: z.enum(["low", "medium", "high", "urgent"]).nullable().optional(),
+    category: z.string().nullable().optional().default("Work"),
+    deadline: z.string().nullable().optional()
   }),
   z.object({
     type: z.literal("habit"),
     title: z.string(),
-    frequency: z.enum(["daily", "weekly"])
+    frequency: z.enum(["daily", "weekly"]).nullable().optional()
   })
 ]);
 
@@ -342,27 +342,55 @@ export const parseIntent = async (req, res, next) => {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: "Text is required" });
 
-    const currentDate = new Date().toISOString();
+    const getCalendarReference = () => {
+      const days = [];
+      const now = new Date();
+      for (let i = 0; i <= 14; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() + i);
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+        const dateIso = d.toISOString().split('T')[0];
+        let label = '';
+        if (i === 0) label = 'Today';
+        else if (i === 1) label = 'Tomorrow';
+        else if (i < 7) label = `This ${dayName}`;
+        else if (i < 14) label = `Next ${dayName}`;
+        
+        days.push(`- ${label}: ${dateIso}`);
+      }
+      return days.join('\n');
+    };
+
+    const calendarCheatSheet = getCalendarReference();
     
     const prompt = `
 You are an intent parser for a productivity app.
-Parse the following text into a JSON object matching this schema exactly.
+Parse the following text into a JSON object matching this schema exactly. Return ONLY valid JSON, with NO markdown formatting, NO backticks, and NO additional text.
 If it's a one-off action, it's a "task". If it's a recurring action, it's a "habit".
-For tasks, resolve any relative dates (like "tomorrow", "next Friday") against the current date: ${currentDate}. Ensure deadline is an ISO 8601 date string. Priority defaults to "medium", but guess based on the text. Category defaults to "Work" or "Personal".
+
+Use this EXACT calendar reference to resolve dates (like "tomorrow" or "next Friday") into an ISO 8601 date string (e.g. "2026-08-21T00:00:00.000Z"):
+${calendarCheatSheet}
+
+Priority defaults to "medium", but guess based on the text. Category defaults to "Work" or "Personal".
 For habits, frequency must be "daily" or "weekly".
 
 Schema:
 {
   "type": "task" | "habit",
   "title": "string",
-  "priority": "low" | "medium" | "high" | "urgent", // only if type is task
-  "category": "string", // only if type is task
-  "deadline": "string", // ISO 8601, optional, only if type is task
-  "frequency": "daily" | "weekly" // only if type is habit
+  "priority": "low" | "medium" | "high" | "urgent",
+  "category": "string",
+  "deadline": "string",
+  "frequency": "daily" | "weekly"
 }
 
 Text to parse: "${text}"
     `;
+
+    const extractJson = (text) => {
+      const match = text.match(/\{[\s\S]*\}/);
+      return match ? match[0] : text;
+    };
 
     let response = await callAI({
       messages: [{ role: "user", content: prompt }]
@@ -371,17 +399,21 @@ Text to parse: "${text}"
     let parsedData;
 
     try {
-      parsedData = JSON.parse(rawText);
+      parsedData = JSON.parse(extractJson(rawText));
       intentSchema.parse(parsedData);
     } catch (e) {
       // Retry once
-      const retryPrompt = `${prompt}\n\nWARNING: Your previous response was invalid. Ensure it is strict JSON matching the schema. Error: ${e.message}`;
+      const retryPrompt = `${prompt}\n\nWARNING: Your previous response was invalid. You MUST return ONLY valid JSON and nothing else. Error: ${e.message}`;
       response = await callAI({
         messages: [{ role: "user", content: retryPrompt }]
       });
       rawText = response.choices[0].message.content;
-      parsedData = JSON.parse(rawText);
+      parsedData = JSON.parse(extractJson(rawText));
       intentSchema.parse(parsedData);
+    }
+
+    if (parsedData.type === 'habit' && !parsedData.frequency) {
+      parsedData.frequency = 'daily';
     }
 
     res.status(200).json(parsedData);

@@ -1,13 +1,25 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageSquare, X, Send, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 
-const QUICK_ACTIONS = [
+const ALL_SUGGESTIONS = [
   "Plan my day",
   "How am I doing?",
-  "Suggest a habit"
+  "Suggest a good morning habit",
+  "What tasks are urgent?",
+  "Help me prioritize my work",
+  "Break down my biggest task",
+  "Log a 25-min Pomodoro session",
+  "Log a deep work session",
+  "Create a weekly review task",
+  "What's my productivity score?",
+  "Add 'Read 10 pages' as a daily habit",
+  "How many tasks did I finish today?",
+  "Schedule time for learning",
+  "Review my completed tasks",
+  "Suggest a focus strategy"
 ];
 
 const ChatAssistant = () => {
@@ -20,6 +32,21 @@ const ChatAssistant = () => {
   
   const queryClient = useQueryClient();
   const messagesEndRef = useRef(null);
+
+  // Pick 3 random suggestions that change every day
+  const dailySuggestions = useMemo(() => {
+    const today = new Date();
+    // Daily seed
+    const seed = today.getFullYear() * 1000 + today.getMonth() * 100 + today.getDate();
+    // Use the seed to pick a starting index, ensuring it rotates daily
+    const startIndex = seed % ALL_SUGGESTIONS.length;
+    
+    const selected = [];
+    for(let i=0; i<3; i++) {
+      selected.push(ALL_SUGGESTIONS[(startIndex + i) % ALL_SUGGESTIONS.length]);
+    }
+    return selected;
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -220,7 +247,7 @@ const ChatAssistant = () => {
 
               <div className="p-4 border-t border-zinc-200/50 dark:border-zinc-800/40 bg-white/50 dark:bg-[#09090b]/50 backdrop-blur-md">
                 <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-3 mb-1">
-                  {QUICK_ACTIONS.map(action => (
+                  {dailySuggestions.map(action => (
                     <button 
                       key={action}
                       onClick={() => handleSend(action)}

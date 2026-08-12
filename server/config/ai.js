@@ -2,8 +2,8 @@ import OpenAI from 'openai';
 import dotenv from 'dotenv';
 dotenv.config();
 
-export const NVIDIA_MODEL = 'google/gemma-4-31b-it';
-export const NVIDIA_FALLBACK_MODEL = 'meta/llama-3.1-70b-instruct';
+export const NVIDIA_MODEL = 'meta/llama-3.1-8b-instruct';
+export const NVIDIA_FALLBACK_MODEL = 'meta/llama-3.1-8b-instruct';
 
 let openaiInstance = null;
 export const getOpenAIClient = () => {

@@ -9,6 +9,13 @@ export const getAnalytics = async (req, res, next) => {
   try {
     const userId = req.user._id;
 
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
     // Use aggregation pipeline instead of fetching all docs into memory
     const [taskStats, habitData] = await Promise.all([
       Task.aggregate([
@@ -30,7 +37,7 @@ export const getAnalytics = async (req, res, next) => {
                           $and: [
                             { $ne: ['$status', 'completed'] },
                             { $ne: ['$deadline', null] },
-                            { $lt: ['$deadline', new Date()] }
+                            { $lt: ['$deadline', startOfToday] }
                           ]
                         },
                         1,
@@ -40,6 +47,35 @@ export const getAnalytics = async (req, res, next) => {
                   },
                   activeTasks: {
                     $sum: { $cond: [{ $ne: ['$status', 'completed'] }, 1, 0] }
+                  },
+                  completedLast7: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $eq: ['$status', 'completed'] },
+                            { $gte: ['$updatedAt', sevenDaysAgo] }
+                          ]
+                        },
+                        1,
+                        0
+                      ]
+                    }
+                  },
+                  activeDueRecent: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $ne: ['$status', 'completed'] },
+                            { $ne: ['$deadline', null] },
+                            { $lt: ['$deadline', new Date(startOfToday.getTime() + 7 * 24 * 60 * 60 * 1000)] }
+                          ]
+                        },
+                        1,
+                        0
+                      ]
+                    }
                   }
                 }
               }
@@ -50,10 +86,37 @@ export const getAnalytics = async (req, res, next) => {
       Habit.aggregate([
         { $match: { user: userId } },
         {
-          $group: {
-            _id: null,
-            totalHabits: { $sum: 1 },
-            totalStreaks: { $sum: '$streak' }
+          $facet: {
+            totals: [
+              { $count: "totalHabits" }
+            ],
+            uniqueActiveDaysAllTime: [
+              { $unwind: "$completionLog" },
+              {
+                $group: {
+                  _id: { 
+                    year: { $year: "$completionLog" }, 
+                    month: { $month: "$completionLog" }, 
+                    day: { $dayOfMonth: "$completionLog" } 
+                  }
+                }
+              },
+              { $count: "count" }
+            ],
+            uniqueActiveDaysLast7: [
+              { $unwind: "$completionLog" },
+              { $match: { completionLog: { $gte: sevenDaysAgo } } },
+              {
+                $group: {
+                  _id: { 
+                    year: { $year: "$completionLog" }, 
+                    month: { $month: "$completionLog" }, 
+                    day: { $dayOfMonth: "$completionLog" } 
+                  }
+                }
+              },
+              { $count: "count" }
+            ]
           }
         }
       ])
@@ -61,14 +124,23 @@ export const getAnalytics = async (req, res, next) => {
 
     // Extract results
     const stats = taskStats[0]?.totals[0] || { totalTasks: 0, completedTasks: 0, overdueTasks: 0, activeTasks: 0 };
-    const habits = habitData[0] || { totalHabits: 0, totalStreaks: 0 };
-
-    const { totalTasks, completedTasks, overdueTasks, activeTasks: activeTasksCount } = stats;
-    const { totalHabits, totalStreaks } = habits;
+    const habitDataObj = habitData[0] || {};
+    
+    const { totalTasks, completedTasks, overdueTasks, activeTasks: activeTasksCount, completedLast7 = 0, activeDueRecent = 0 } = stats;
+    const totalHabits = habitDataObj.totals?.[0]?.totalHabits || 0;
+    const totalStreaks = habitDataObj.uniqueActiveDaysAllTime?.[0]?.count || 0;
+    const activeDaysLast7 = habitDataObj.uniqueActiveDaysLast7?.[0]?.count || 0;
 
     // 2. Calculate Productivity Score (0-100)
-    const taskCompletionRate = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-    const habitConsistency = totalHabits > 0 ? Math.min((totalStreaks / (totalHabits * 7)) * 100, 100) : 0;
+    const recentTasksTotal = completedLast7 + activeDueRecent;
+    const taskCompletionRate = recentTasksTotal > 0 
+      ? (completedLast7 / recentTasksTotal) * 100 
+      : (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
+      
+    const accountAgeInDays = Math.max(1, Math.ceil((new Date() - new Date(req.user.createdAt)) / (1000 * 60 * 60 * 24)));
+    const consistencyDenominator = Math.min(7, accountAgeInDays);
+    const habitConsistency = (activeDaysLast7 / consistencyDenominator) * 100;
+    
     const productivityScore = Math.round((taskCompletionRate * 0.6) + (habitConsistency * 0.4));
 
     // 3. Burnout Detection Logic
@@ -84,10 +156,6 @@ export const getAnalytics = async (req, res, next) => {
     }
 
     // 4. Weekly Trend Analysis for past 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-
     const [recentSessions, recentCompletedTasks] = await Promise.all([
       FocusSession.find({ user: userId, createdAt: { $gte: sevenDaysAgo } }).lean(),
       Task.find({ user: userId, status: 'completed', updatedAt: { $gte: sevenDaysAgo } }).lean()
@@ -100,15 +168,14 @@ export const getAnalytics = async (req, res, next) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
       const dayName = daysMap[date.getDay()];
+      const targetDateString = date.toISOString().split('T')[0];
       
       const daySessions = recentSessions.filter(s => {
-        const d = new Date(s.createdAt);
-        return d.getDate() === date.getDate() && d.getMonth() === date.getMonth() && d.getFullYear() === date.getFullYear();
+        return new Date(s.createdAt).toISOString().split('T')[0] === targetDateString;
       });
 
       const dayTasks = recentCompletedTasks.filter(t => {
-        const d = new Date(t.updatedAt);
-        return d.getDate() === date.getDate() && d.getMonth() === date.getMonth() && d.getFullYear() === date.getFullYear();
+        return new Date(t.updatedAt).toISOString().split('T')[0] === targetDateString;
       });
 
       const totalFocusMinutes = daySessions.reduce((acc, s) => acc + (s.durationInMinutes || 0), 0);
