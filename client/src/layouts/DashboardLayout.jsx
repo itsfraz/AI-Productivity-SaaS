@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import NotificationBell from '../components/NotificationBell';
 import ChatAssistant from '../components/ChatAssistant';
 import CommandPalette from '../components/CommandPalette';
+import api from '../services/api';
 
 const SidebarItem = memo(({ icon: Icon, label, to, isActive }) => (
   <Link 
@@ -77,6 +78,25 @@ const DashboardLayout = () => {
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    const syncTimezone = async () => {
+      if (!user) return;
+      try {
+        const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const savedTz = user.preferences?.timezone;
+        
+        if (localTz && savedTz !== localTz) {
+          await api.put('/users/profile', {
+            preferences: { timezone: localTz }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to sync timezone', err);
+      }
+    };
+    syncTimezone();
+  }, [user]);
 
   return (
     <div className="flex h-screen bg-zinc-50 dark:bg-[#000000] text-zinc-900 dark:text-zinc-100 overflow-hidden font-sans">

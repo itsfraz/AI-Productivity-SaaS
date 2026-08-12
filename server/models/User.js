@@ -17,7 +17,8 @@ const userSchema = new mongoose.Schema({
   },
   preferences: {
     theme: { type: String, default: 'dark' },
-    notifications: { type: Boolean, default: true }
+    notifications: { type: Boolean, default: true },
+    timezone: { type: String, default: 'UTC' }
   },
   productivityScore: {
     type: Number,

@@ -1,4 +1,5 @@
 import cron from 'node-cron';
+import { fromZonedTime } from 'date-fns-tz';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 import WeeklyReport from '../models/WeeklyReport.js';
@@ -108,20 +109,74 @@ Analyze this data and return a JSON object exactly matching this schema:
 };
 
 export const startCronJobs = () => {
-  cron.schedule('0 9 * * *', async () => {
+  cron.schedule('0 * * * *', async () => {
     try {
+      console.log('Starting hourly check for timezone-aware morning notifications...');
       const users = await User.find({});
-      
-      const notifications = users.map(user => ({
-        user: user._id,
-        title: 'Daily Check-in',
-        message: 'Your AI Coach has generated a new daily plan for you. Check it out!',
-        type: 'reminder'
-      }));
+      let sentCount = 0;
 
-      if (notifications.length > 0) {
-        await Notification.insertMany(notifications);
-        console.log('Daily reminders sent to all users.');
+      for (const user of users) {
+        const userTz = user.preferences?.timezone || 'UTC';
+        
+        let currentHour;
+        let dateParts;
+        try {
+          const formatter = new Intl.DateTimeFormat('en-US', { timeZone: userTz, hour: 'numeric', hour12: false });
+          currentHour = parseInt(formatter.format(new Date()), 10);
+          dateParts = new Intl.DateTimeFormat('en-US', { timeZone: userTz, year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date());
+        } catch (e) {
+          console.error(`Invalid timezone for user ${user._id}: ${userTz}`);
+          continue;
+        }
+
+        if (currentHour !== 9) {
+          continue;
+        }
+
+        // Get the exact UTC boundaries for their local day
+        const [month, day, year] = dateParts.split('/');
+        const isoBase = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        
+        const todayStart = fromZonedTime(`${isoBase}T00:00:00.000`, userTz);
+        const todayEnd = fromZonedTime(`${isoBase}T23:59:59.999`, userTz);
+
+        const pendingTasksCount = await Task.countDocuments({
+          user: user._id,
+          status: { $ne: 'completed' },
+          deadline: { $lte: todayEnd }
+        });
+
+        const pendingHabitsCount = await Habit.countDocuments({
+          user: user._id,
+          $or: [
+            { lastCompleted: { $lt: todayStart } },
+            { lastCompleted: null }
+          ]
+        });
+
+        if (pendingTasksCount > 0 || pendingHabitsCount > 0) {
+          let message = 'Good morning! ';
+          if (pendingTasksCount > 0 && pendingHabitsCount > 0) {
+            message += `You have ${pendingTasksCount} tasks due and ${pendingHabitsCount} habits to complete today.`;
+          } else if (pendingTasksCount > 0) {
+            message += `You have ${pendingTasksCount} tasks to tackle today.`;
+          } else {
+            message += `You have ${pendingHabitsCount} habits to complete today.`;
+          }
+          message += ' Let\'s make it a productive day!';
+
+          await Notification.create({
+            user: user._id,
+            title: 'Daily Check-in',
+            message: message,
+            type: 'reminder',
+            actionUrl: '/'
+          });
+          sentCount++;
+        }
+      }
+      if (sentCount > 0) {
+        console.log(`Daily reminders sent to ${sentCount} users for their 9 AM local time.`);
       }
     } catch (error) {
       console.error('Error in daily cron job:', error);
