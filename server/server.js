@@ -28,13 +28,15 @@ app.use(morgan('dev'));
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 30,
-  message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' }
+  message: { message: 'Too many authentication attempts. Please try again in 15 minutes.' },
+  validate: { default: false, xForwardedForHeader: false }
 });
 
 const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
-  message: { message: 'AI request limit reached. Please wait a few minutes before trying again.' }
+  message: { message: 'AI request limit reached. Please wait a few minutes before trying again.' },
+  validate: { default: false, xForwardedForHeader: false }
 });
 
 // Body parsing Middleware
