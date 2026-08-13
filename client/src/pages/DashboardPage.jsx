@@ -14,28 +14,49 @@ const DashboardPage = () => {
   const [tasks, setTasks] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchDashboardData = async (cancelled = false) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const results = await Promise.allSettled([
+        api.get('/tasks'),
+        api.get('/analytics')
+      ]);
+      if (!cancelled) {
+        const tasksRes = results[0];
+        const analyticsRes = results[1];
+        
+        if (tasksRes.status === 'fulfilled' && analyticsRes.status === 'fulfilled') {
+          setTasks(tasksRes.value.data);
+          setAnalytics(analyticsRes.value.data);
+        } else {
+          setError('Failed to load dashboard data.');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard data', err);
+      if (!cancelled) setError('An unexpected error occurred.');
+    } finally {
+      if (!cancelled) setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
-    const fetchDashboardData = async () => {
-      try {
-        const [tasksRes, analyticsRes] = await Promise.all([
-          api.get('/tasks'),
-          api.get('/analytics')
-        ]);
-        if (!cancelled) {
-          setTasks(tasksRes.data);
-          setAnalytics(analyticsRes.data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard data', error);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    fetchDashboardData();
+    fetchDashboardData(cancelled);
     return () => { cancelled = true; };
   }, []);
+
+  if (loading) return <div className="flex h-screen items-center justify-center">Loading dashboard...</div>;
+  if (error) return (
+    <div className="flex flex-col h-screen items-center justify-center text-red-500">
+      <Sparkles className="w-12 h-12 mb-4 opacity-50" />
+      <p className="mb-4 font-medium text-red-700 dark:text-red-400">{error}</p>
+      <button onClick={() => fetchDashboardData()} className="px-4 py-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium">Retry</button>
+    </div>
+  );
 
   const completedTasksCount = analytics?.stats?.completedTasks ?? 0;
   const totalTasksCount = analytics?.stats?.totalTasks ?? 0;

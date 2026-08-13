@@ -20,7 +20,8 @@ const app = express();
 app.use(helmet());
 app.use(compression()); // Gzip compress all responses
 
-const allowedOrigin = process.env.CLIENT_URL || true;
+// NOTE: CLIENT_URL must be exactly set to the production frontend URL in your hosting environment variables
+const allowedOrigin = process.env.NODE_ENV === 'development' ? (process.env.CLIENT_URL || true) : process.env.CLIENT_URL;
 app.use(cors({ origin: allowedOrigin, credentials: true }));
 app.use(morgan('dev'));
 

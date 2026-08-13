@@ -9,27 +9,49 @@ const AnalyticsPage = () => {
   const [analytics, setAnalytics] = useState(null);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchAnalytics();
   }, []);
 
   const fetchAnalytics = async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const [analyticsRes, reportsRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.get('/analytics'),
         api.get('/ai/reports')
       ]);
-      setAnalytics(analyticsRes.data);
-      setReports(reportsRes.data);
+      
+      const analyticsRes = results[0];
+      const reportsRes = results[1];
+
+      if (analyticsRes.status === 'fulfilled') {
+        setAnalytics(analyticsRes.value.data);
+      } else {
+        setError('Failed to load productivity analytics.');
+      }
+
+      if (reportsRes.status === 'fulfilled') {
+        setReports(reportsRes.value.data);
+      }
     } catch (error) {
       console.error('Failed to fetch analytics', error);
+      setError('An unexpected error occurred.');
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) return <div className="flex h-64 items-center justify-center text-gray-500">Loading insights...</div>;
+  if (error) return (
+    <div className="flex flex-col h-64 items-center justify-center text-red-500">
+      <AlertTriangle className="w-12 h-12 mb-4 opacity-80" />
+      <p className="mb-4 font-medium text-red-700 dark:text-red-400">{error}</p>
+      <button onClick={fetchAnalytics} className="px-4 py-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors font-medium">Retry</button>
+    </div>
+  );
   if (!analytics) return null;
 
   const { productivityScore, stats, burnout, trends } = analytics;

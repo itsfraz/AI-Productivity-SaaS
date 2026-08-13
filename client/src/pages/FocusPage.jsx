@@ -12,6 +12,7 @@ const FocusPage = () => {
   const [isBreak, setIsBreak] = useState(false);
   const [distractions, setDistractions] = useState(0);
   const [analytics, setAnalytics] = useState(null);
+  const [analyticsError, setAnalyticsError] = useState(null);
   const [aiRecommendation, setAiRecommendation] = useState(null);
   
   // Track start time to log session correctly
@@ -43,11 +44,13 @@ const FocusPage = () => {
   };
 
   const fetchAnalytics = async () => {
+    setAnalyticsError(null);
     try {
       const { data } = await api.get('/focus');
       setAnalytics(data);
     } catch (error) {
       console.error('Failed to fetch focus analytics');
+      setAnalyticsError('Failed to load stats');
     }
   };
 
@@ -277,7 +280,12 @@ const FocusPage = () => {
               Your Focus Stats
             </h3>
             
-            {analytics ? (
+            {analyticsError ? (
+              <div className="flex flex-col h-32 items-center justify-center text-red-500 bg-gray-50 dark:bg-dark-bg rounded-lg">
+                <p className="mb-2 font-medium text-red-700 dark:text-red-400 text-sm">{analyticsError}</p>
+                <button onClick={fetchAnalytics} className="px-3 py-1 text-sm bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded hover:bg-red-200 transition-colors">Retry</button>
+              </div>
+            ) : analytics ? (
               <div className="space-y-4">
                 <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-dark-bg rounded-lg">
                   <span className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-2">

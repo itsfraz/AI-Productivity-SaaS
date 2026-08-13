@@ -14,7 +14,7 @@ const TasksPage = () => {
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [newTask, setNewTask] = useState({ title: '', description: '', priority: 'medium', category: 'Work', deadline: '' });
 
-  const { data: tasks = [], isLoading: loading } = useQuery({
+  const { data: tasks = [], isLoading: loading, isError, refetch } = useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
       const { data } = await api.get('/tasks');
@@ -163,6 +163,15 @@ const TasksPage = () => {
           <div className="w-8 h-8 border-3 border-zinc-200 dark:border-zinc-700 border-t-primary-500 rounded-full animate-spin" />
           <span className="text-sm text-gray-500 dark:text-gray-400">Loading tasks...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col h-64 items-center justify-center text-red-500">
+        <p className="mb-4 font-medium text-red-700 dark:text-red-400">Failed to load tasks.</p>
+        <button onClick={() => refetch()} className="px-4 py-2 bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 rounded-lg hover:bg-red-200 transition-colors font-medium">Retry</button>
       </div>
     );
   }
