@@ -138,7 +138,7 @@ const DashboardLayout = () => {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 relative">
         {/* Top Navbar */}
-        <header className="h-[72px] bg-white/70 dark:bg-[#000000]/70 backdrop-blur-xl border-b border-zinc-200/50 dark:border-zinc-800/40 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-10 sticky top-0">
+        <header className="h-[72px] bg-white/70 dark:bg-[#000000]/70 backdrop-blur-xl border-b border-zinc-200/50 dark:border-zinc-800/40 flex items-center justify-between px-4 sm:px-6 lg:px-8 z-40 sticky top-0">
           <div className="flex items-center gap-3">
             <button 
               onClick={() => setIsMobileMenuOpen(true)}

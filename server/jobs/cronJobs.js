@@ -195,23 +195,33 @@ export const startCronJobs = () => {
           continue;
         }
 
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const todayEnd = new Date();
-        todayEnd.setHours(23, 59, 59, 999);
+        const userTz = user.preferences?.timezone || 'UTC';
+        let dateParts;
+        try {
+          dateParts = new Intl.DateTimeFormat('en-US', { timeZone: userTz, year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date());
+        } catch (e) {
+          dateParts = new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' }).format(new Date());
+        }
+        
+        const [month, day, year] = dateParts.split('/');
+        const isoBase = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        const todayStart = fromZonedTime(`${isoBase}T00:00:00.000`, userTz);
+        const todayEnd = fromZonedTime(`${isoBase}T23:59:59.999`, userTz);
 
-        // Signal 1: Overdue tasks
-        const overdueTasksCount = await Task.countDocuments({
+        // Signal 1: Pending Tasks (Due today or overdue)
+        const pendingTasksCount = await Task.countDocuments({
           user: user._id,
           status: { $ne: 'completed' },
-          deadline: { $lt: new Date() }
+          deadline: { $lte: todayEnd }
         });
 
-        // Signal 2: Habits at risk (active streak, but not logged today)
-        const habitsAtRisk = await Habit.countDocuments({
+        // Signal 2: Pending Habits (not completed today)
+        const pendingHabitsCount = await Habit.countDocuments({
           user: user._id,
-          currentStreak: { $gt: 0 },
-          lastCompleted: { $lt: todayStart }
+          $or: [
+            { lastCompleted: { $lt: todayStart } },
+            { lastCompleted: null }
+          ]
         });
 
         // Signal 3: No focus session today
@@ -221,8 +231,8 @@ export const startCronJobs = () => {
         });
 
         const signals = [];
-        if (overdueTasksCount > 0) signals.push(`${overdueTasksCount} tasks are overdue`);
-        if (habitsAtRisk > 0) signals.push(`${habitsAtRisk} habits are at risk of losing their streak`);
+        if (pendingTasksCount > 0) signals.push(`${pendingTasksCount} tasks are still pending or due soon`);
+        if (pendingHabitsCount > 0) signals.push(`${pendingHabitsCount} habits have not been completed today`);
         if (focusTodayCount === 0) signals.push(`No focus sessions logged today`);
 
         if (signals.length > 0) {
